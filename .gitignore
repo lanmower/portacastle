@@ -44,10 +44,17 @@ next-env.d.ts
 .gm/browser-profile-*/
 
 # --- gm managed (transient plugkit runtime, not source) ---
+# Disciplines (.gm/disciplines/) and memory (.gm/memory/) ARE tracked.
 .gm/exec-spool/
 .gm/tmp-witness/
 .gm/witness/
 .gm/*.json
+.gm/*.yml
+.gm/*.md
 .gm/*.log
 .gm/last-prompt.txt
+.gm/last-dispatch-ts
+.gm/last-instruction-ts
+.gm/long-gap-retry-state
+.gm/next-step.md
 # --- end gm managed ---
