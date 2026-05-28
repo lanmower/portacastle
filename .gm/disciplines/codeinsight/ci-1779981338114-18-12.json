@@ -1,0 +1,59 @@
+./src/app/api/admin/golden-snapshot/route.ts:18:75 GET
+async function GET() {
+  const session = await getSession();
+  if (!session || session.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const snapshotId = await getGoldenSnapshotId();
+
+  const [configRow] = await db
+    .select()
+    .from(config)
+    .where(eq(config.key, "golden_snapshot_id"));
+
+  const staleThreshold = new Date(Date.now() - 15 * 60 * 1000);
+
+  const [poolStats] = await db
+    .select({
+      total: count(),
+      available: count(
+        sql`CASE WHEN ${warmPool.status} = 'available' AND ${warmPool.createdAt} > ${staleThreshold} THEN 1 END`
+      ),
+      claimed: count(
+        sql`CASE WHEN ${warmPool.status} = 'claimed' THEN 1 END`
+      ),
+      expired: count(
+        sql`CASE WHEN ${warmPool.status} = 'expired' THEN 1 END`
+      ),
+      matchingSnapshot: count(
+        sql`CASE WHEN ${warmPool.snapshotId} = ${snapshotId ?? ""} AND ${warmPool.status} = 'available' THEN 1 END`
+      ),
+    })
+    .from(warmPool);
+
+  const recentPoolEntries = await db
+    .select({
+      id: warmPool.id,
+      sandboxId: warmPool.sandboxId,
+      snapshotId: warmPool.snapshotId,
+      status: warmPool.status,
+      claimedAt: warmPool.claimedAt,
+      createdAt: warmPool.createdAt,
+    })
+    .from(warmPool)
+    .orderBy(sql`${warmPool.createdAt} DESC`)
+    .limit(20);
+
+  return NextResponse.json({
+    goldenSnapshot: {
+      snapshotId,
+      updatedAt: configRow?.updatedAt?.toISOString() ?? null,
+    },
+    pool: {
+      target: 15,
+      ...poolStats,
+    },
+    recentPoolEntries,
+  });
+}

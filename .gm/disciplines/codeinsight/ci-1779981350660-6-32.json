@@ -1,0 +1,2 @@
+./src/app/api/files/write/route.ts:6:6 
+({ path, content }) => ({ path, content })

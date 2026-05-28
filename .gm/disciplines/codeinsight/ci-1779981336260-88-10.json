@@ -1,0 +1,22 @@
+./src/app/admin/page.tsx:88:108 StatCard
+function StatCard({
+  title,
+  value,
+  subtitle,
+}: {
+  title: string;
+  value: number | string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-alpha-400 bg-background-100 p-5">
+      <p className="text-copy-13 text-gray-900">{title}</p>
+      <p className="mt-1 text-[28px] font-semibold tracking-tight text-gray-1000">
+        {value}
+      </p>
+      {subtitle && (
+        <p className="mt-1 text-copy-13 text-gray-700">{subtitle}</p>
+      )}
+    </div>
+  );
+}

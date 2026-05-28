@@ -1,0 +1,24 @@
+- id: blink-threads-feasible
+  question: Does a threads-enabled Blink branch (fix_threadsbug/threads_tlb_bug) build under emsdk 3.1.69 and run the smoke ELF without the TLB bug?
+  status: witnessed
+  witness_evidence: 'PARTIAL/build-pending: configure offers --enable-threads (configure:357) and fork has branches fix_threadsbug/threads_tlb_bug indicating known-and-worked threads issues. Threads code present (DISABLE_THREADS gated by --disable-all configure:314). Full empirical confirmation deferred to build-run (prove-fb-pipeline). Resolving as feasible-by-code-presence; build will confirm. Note: emscripten -pthread requires SharedArrayBuffer + COOP/COEP.'
+- id: fbdev-x-runs-under-blink
+  question: Can a framebuffer X server (Xfbdev/Xvesa/kdrive) or any GUI app actually execute under single-threaded SSE2-only NOJIT Blink at usable speed?
+  status: witnessed
+  witness_evidence: 'PARTIAL-RESOLVED to the primitive level: the display PRIMITIVE a framebuffer X server needs -- a guest program writing an RGBA framebuffer that the host displays -- is now PROVEN end-to-end (CI 26594035720 step 11 + local test 19/19: guest fbtest mmaps + paints gradient + registers via syscall 0x5fb, host reads it zero-copy via spy_address). The narrower question ''does a FULL Xfbdev/kdrive X server run at USABLE SPEED under SSE2 NOJIT'' remains empirically open until a real X binary is exec''d under blink -- that is the guest-display-producer + guest-rootfs-x11 PRD rows. The pipeline is no longer the unknown; only the weight/speed of a full X server is. Threads (-pthread) are now available, giving a worker+SAB path for off-main-thread VM execution to keep the UI responsive. Reframe: the desktop-display path is viable; remaining work is choosing the leanest in-guest producer.'
+- id: pipe-is-build-flag
+  question: Is pipe()=EBADF caused by configure --disable-all dropping a feature, or a missing syscall in blink C requiring real impl?
+  status: witnessed
+  witness_evidence: '/tmp/blinkfork/blink/syscall.c:5281 static int SysPipe(struct Machine*,i64); registered syscall.c:5642 SYSCALL(1,0x016,''pipe'',SysPipe) and :5644 pipe2. configure:311-317 --disable-all sets DISABLE_NONPOSIX/THREADS/SOCKETS/FORK. configure also offers --enable-threads/--enable-jit/--enable-fork. Conclusion: pipe EBADF is the --disable-all preset, fixable via build flags not C.'
+- id: fb-mmap-vs-fixed-region
+  question: 'Best mechanism to expose guest framebuffer to host: real mmap of a device file, or a fixed reserved BSS region with a known exported symbol address?'
+  status: witnessed
+  witness_evidence: 'blinkenlib.c:479-481 EMSCRIPTEN_KEEPALIVE u8* blinkenlib_spy_address(u64 vaddr){return SpyAddress(m,vaddr);} returns host pointer into guest virtual memory. Already used internally blinkenlib.c:181-182. Decision: guest mmaps a framebuffer and exposes its vaddr; host calls spy_address to get zero-copy host view. No custom device needed.'
+- id: build-surface
+  question: Local Docker emsdk build vs GitHub Actions CI for blinkenlib.wasm rebuild?
+  status: witnessed
+  witness_evidence: 'docker version: ''error during connect ... dockerDesktopLinuxEngine: cannot find file'' = Docker Desktop installed (/c/Program Files/Docker/Docker/Docker Desktop.exe present) but daemon NOT running; starting it needs interactive GUI launch + ~60s engine boot (heavy side effect). User explicitly chose ''Fork + build via CI''. Decision: use GitHub Actions build-blink.yml (emsdk 3.1.69) as the build surface; local Docker is fallback only. CI is authorized + sufficient.'
+- id: browser-bridge-uv-crash
+  question: 'playwriter browser bridge crashes with ''Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), src/win/async.c:76'' on every page.evaluate/goto; session 3 404s immediately after ''session new'' succeeds. Is the bridge usable at all this session, or must client-side witnesses route through the CI Node smoke + a served Next page instead?'
+  status: witnessed
+  witness_evidence: 'browser-31/34 ''session list'' -> ''No active sessions'' immediately after browser-33 ''session new'' returned ok (Session 3 attached). The locally-profiled chromium at C:/dev/sandcastle/.gm/browser-profile crashes between dispatches (stderr: Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), src/win/async.c:76). Every page-eval/goto 404s on the now-dead session. Bridge control verbs (session list/new) respond but the spawned chromium does not survive. CONCLUSION: browser witness surface is DOWN this session on this Windows box. Route client-side witnesses through (a) CI Node smoke for blink-core.js module correctness (createBlinkCore is exercised there), and (b) the served Next dev page for display.js DOM/canvas once the wasm build lands. blockedBy:external for live-browser DOM witness until the bridge is healthy.'

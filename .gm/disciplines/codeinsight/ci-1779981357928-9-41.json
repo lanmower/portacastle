@@ -1,0 +1,40 @@
+./src/app/api/sandbox/[id]/route.ts:9:47 GET
+async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const result = await getAuthedWorkspace(params);
+  if (result instanceof NextResponse) return result;
+  const { workspace } = result;
+
+  let sandbox = null;
+  let sandboxLost = false;
+  if (workspace.sandboxId) {
+    try {
+      sandbox = await getSandbox(workspace.sandboxId);
+    } catch (err) {
+      // Sandbox is dead (expired, crashed, etc.)
+      console.warn(
+        `[sandbox/${workspace.id}] Sandbox ${workspace.sandboxId} is unreachable` +
+        ` (workspace: "${workspace.name}", status was: ${workspace.status}).` +
+        ` ${workspace.snapshotId ? `Has snapshot ${workspace.snapshotId} for recovery.` : "No snapshot available."}` +
+        ` Error: ${err instanceof Error ? err.message : err}`,
+      );
+      sandboxLost = true;
+      await markWorkspaceStopped(workspace.id);
+    }
+  }
+
+  // Re-fetch workspace after potential status update
+  const current = sandboxLost
+    ? (await db.select().from(workspaces).where(eq(workspaces.id, workspace.id)))[0] ?? workspace
+    : workspace;
+
+  return NextResponse.json({
+    workspace: current,
+    sandbox,
+    // Signal to the client that the sandbox died so it can auto-recover
+    sandboxLost,
+    canRecover: sandboxLost && !!(current.snapshotId),
+  });
+}

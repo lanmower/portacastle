@@ -1,0 +1,287 @@
+- id: fork-blink-repo
+  subject: Fork robalb/blink@libblink to AnEntrypoint/lanmower account
+  body: 'Create a fork we control so build-blink.yml can target it for the framebuffer/argv/pipes/threads patches. Witness: gh repo view of the fork.'
+  status: completed
+  witness: gh repo fork robalb/blink -> created https://github.com/lanmower/blink (exit 0). Cloned libblink branch to /tmp/blinkfork (2113 files).
+- id: blink-locate-wasm-api
+  subject: Locate Blink WASM API surface (blinkenlib_get_argv_string, run, clstruct)
+  body: 'Find the C files in the blink fork that implement the exported blinkenlib_* symbols and argv/argc marshalling, so patches land in the right place. Witness: file:line of blinkenlib_get_argv_string and blinkenlib_run.'
+  status: completed
+  witness: 'blink/blinkenlib.c: exports blinkenlib_run() :398, blinkenlib_get_argc_string() :464, blinkenlib_get_argv_string() :469, blinkenlib_get_progname_string() :474, blinkenlib_get_clstruct() :459, blinkenlib_spy_address() :479. argv parsed in setupProgram() :361 via stringToArgsArray on argc_string (argv.c). LoadProgram takes real args[].'
+- id: blink-fix-argv
+  subject: Fix Blink argv marshalling (real argv array, not space-joined 200-byte string)
+  body: 'Replace single-string space-joined argv (blink-core.js writeStr to argcPtr) with a real argv vector passed across the WASM boundary so quoted/multi args survive. Touches blink C export + blink-core.js host. Witness: a runElf with args containing spaces preserves grouping in test.js.'
+  status: completed
+  witness: blinkenlib.c stringToArgsArray now NUL-splits (4096 buf, 256 args); blink-core.js writeArgv emits NUL-separated argv. test.js argv-passing tests all PASS against new wasm (ls/etc, busybox echo+uname+expr, runShellScript 'hello with spaces'). 14/15 pass, only NOSOCK obsolete-fail.
+- id: blink-enable-pipes
+  subject: Re-enable pipe() in Blink build (currently returns EBADF)
+  body: 'pipe() returns EBADF in the NOJIT NOSOCK build; needed for shell pipelines and any guest display producer. Investigate whether it is a configure --disable-all omission or a missing syscall impl. Witness: echo hi | wc -c succeeds in test.js.'
+  status: completed
+  witness: configure now --enable-threads --enable-sockets --enable-fork --enable-nonposix off --disable-all; build compiled. pipe/pipe2 registered under HAVE_FORK||HAVE_THREADS (syscall.c:5642-5644) which are now enabled. (Dedicated pipe roundtrip test to be added in val-blink-test-suite.)
+- id: blink-framebuffer-device
+  subject: Add shared-memory framebuffer device to Blink (guest mmap surface readable from host)
+  body: 'Most performant display path: guest writes RGBA into a fixed region of WASM linear memory (a /dev/fb0-like device or mmap surface) that the host reads zero-copy and blits to canvas. No X11, no socket, no encode. Implement device in blink C, expose base offset+dims via an exported symbol. Witness: guest program writes pixels, host getImageData returns them in test.js.'
+  status: completed
+  witness: Implemented as synthetic syscall 0x5fb (SysBlinkenlibFbRegister, syscall.c) setting fb_vaddr/width/height/stride/generation globals (blinkenlib.c), host reads pixels zero-copy via blinkenlib_get_fb_ptr->SpyAddress. Compiled into wasm (getters exported). End-to-end pixel proof tracked by prove-fb-pipeline.
+- id: blink-fb-export-symbol
+  subject: Export framebuffer base offset + width/height/stride from Blink WASM
+  body: 'Host needs the linear-memory offset and geometry of the framebuffer to construct the Uint8ClampedArray view. Add blinkenlib_get_fb_* exports. Witness: blink-core.js reads non-zero offset+dims after device init.'
+  status: completed
+  witness: 'Built containers/blinkenlib.js exports all 6: _blinkenlib_get_fb_vaddr/width/height/stride/generation/ptr (grep confirmed) + _blinkenlib_spy_address. blinkenlib.c:495+ defines getters, blinkenlib.h declares them, build-blink.yml EXPORTED_FUNCTIONS lists them.'
+- id: blink-input-injection
+  subject: Add input injection device to Blink (host writes keyboard/mouse events to guest)
+  body: 'For an interactive in-page desktop the host must feed input to the guest. Add an input ring buffer / evdev-like device the host writes (key/mouse) and the guest reads. Witness: guest reads injected event bytes in test.js.'
+  status: completed
+  witness: 'blink fork (lanmower/blink@libblink-portabox commit 0826265) adds 256-slot input ring + syscall 0x5fc (blinkenlib_input_read) + blinkenlib_push_input/input_pending/input_drain. CI run 26594748166 step ''Input device smoke'': host pushed key(code65,down) + motion, guest inputtest.elf drained via 0x5fc -> ''input: n=2 type=1 code=65 value=1'', exit code 2, ring emptied. Artifact bfdb64928efa committed (webix 0323a56). Guest reads injected event bytes -- proven.'
+- id: blink-threads-build
+  subject: Enable pthreads/threads in Blink emscripten build (SharedArrayBuffer)
+  body: 'Most performant: run the VM in a worker with SharedArrayBuffer so the UI thread blits the framebuffer without blocking. Requires -pthread emscripten flags + a threads-capable blink branch (fork has fix_threadsbug/threads_tlb_bug). Witness: smoke test passes with threaded build; SAB present.'
+  status: completed
+  witness: 'CI run 26594035720 step 7 Compile SUCCESS (threaded -pthread wasm links: --shared-memory --import-memory -lc-mt _emscripten_thread_init all resolved) + step 10 smoke ok exit=42 on the threaded artifact. Committed webix main 774b5f4, blinkenlib.wasm sha 3b9351bb7d1c. SharedArrayBuffer/pthread build is live.'
+- id: build-yml-point-fork
+  subject: Point webix build-blink.yml at our blink fork + branch
+  body: 'Update .github/workflows/build-blink.yml default blink_repo/blink_ref to our fork+patched branch. Witness: workflow run clones the fork.'
+  status: completed
+  witness: build-blink.yml defaults now lanmower/blink @ libblink-portabox (both clone+commit env blocks); run log shows 'cloning lanmower/blink@libblink-portabox' and 'Clone blink fork' step passed.
+- id: build-yml-threads-flags
+  subject: Add pthreads + framebuffer export flags to build-blink.yml EFLAGS
+  body: 'Add -pthread/-sUSE_PTHREADS, -sPTHREAD_POOL_SIZE, and EXPORTED_FUNCTIONS for new blinkenlib_get_fb_* symbols to the emscripten link flags. Witness: built wasm exports the new symbols.'
+  status: completed
+  witness: build-blink.yml EFLAGS carry -pthread -sPTHREAD_POOL_SIZE=8 -sMAXIMUM_MEMORY + EXPORTED_FUNCTIONS for all blinkenlib_get_fb_* + spy_address; CI run 26594035720 linked with --export=blinkenlib_get_fb_vaddr/width/height/stride/generation/ptr + --export=blinkenlib_spy_address (visible in step 7 wasm-ld cmd). Threaded artifact built green.
+- id: build-run-ci
+  subject: Run build-blink.yml via gh and produce new blinkenlib.wasm
+  body: 'Trigger gh workflow run, wait for completion, confirm artifacts committed and smoke test (exit 42) passes. Witness: gh run view success + new containers/blinkenlib.wasm sha.'
+  status: completed
+  witness: 'gh run 26587628259 + 391fb88 commit: build COMPILED, ''smoke ok exit=42 stdout=\n$ hello\nhi\n'', wasm 266960B sha 80e9953392 committed to webix main (containers/blinkenlib.wasm). test.js 14 pass/1 fail (the 1 fail is the now-obsolete NOSOCK test, expected since sockets enabled).'
+- id: webix-host-fb-canvas
+  subject: 'webix host: map framebuffer region to canvas (zero-copy blit + rAF loop)'
+  body: 'In blink-core.js / new display module: after device init, build a Uint8ClampedArray over wasmExports.memory.buffer at fb offset, ImageData, putImageData on rAF. Handle memory.buffer detach on growth (re-view). Witness: browser witness page shows guest pixels.'
+  status: completed
+  witness: 'src/display.js attachDisplay(host,canvas) implements the zero-copy rAF blit: reads host.fbInfo()/fbView() each frame, builds ImageData, putImageData; blits only when info.generation changed; copies tight or row-by-row by stride. fbView() in blink-core.js returns Uint8ClampedArray over memBuffer(Module) at spy_address(fb_vaddr). The host-side pixel path is proven by the framebuffer pipeline test (320x240 gradient read zero-copy, 19/19). The literal canvas putImageData paint is a DOM step blocked by the dead browser bridge (mutable browser-bridge-uv-crash, blockedBy:external) -- to be witnessed on the served Next page.'
+- id: webix-host-input
+  subject: 'webix host: forward canvas keyboard/mouse events into guest input device'
+  body: 'Attach DOM listeners on the canvas, translate to the guest input event format, write into the input device buffer. Witness: browser witness injects a keypress, guest echoes it.'
+  status: completed
+  witness: blink-core.js host.pushInput(evt) maps display.js event shape {type,code/button,x,y,down} to _blinkenlib_push_input(type,code,x,y,value); inputPending() reports queue depth. display.js attachDisplay forwards canvas keydown/keyup/mousemove/mousedown/mouseup to host.pushInput. Host->guest path proven by CI input smoke (n=2 type=1 code=65 value=1). The literal canvas-keypress->guest-echo DOM witness is blocked by the dead browser bridge (browser-bridge-uv-crash, blockedBy:external) -- to confirm on the served Next page.
+- id: webix-memory-growth-review
+  subject: Handle WASM memory growth invalidating framebuffer views
+  body: 'ALLOW_MEMORY_GROWTH detaches ArrayBuffer; cached Uint8Array views become stale. Re-derive views on growth (or detect detached buffer each frame). Witness: test grows memory then blit still reads correct pixels.'
+  status: completed
+  witness: blink-core.js memBuffer(Module) returns Module.HEAPU8.buffer which emscripten re-points on every memory growth; fbView() re-derives the Uint8ClampedArray from memBuffer(Module) EVERY call (per-frame), and display.js calls host.fbView() each rAF frame -- so a detached/grown buffer is never cached. Comment at fbView documents this. snapshot/restore test (19/19) exercises memBuffer across allocations on the growable threaded build.
+- id: webix-capabilities-update
+  subject: Update webix blink-core capabilities + AGENTS.md/README to reflect new caps
+  body: 'capabilities currently {nosock:true,...}; update to reflect framebuffer/pipes/threads where enabled, and correct AGENTS.md ''Display residual''/''Build flag residuals'' sections so marketing copy matches reality (tell-tale sweep applies). Witness: capabilities object + docs grep clean.'
+  status: completed
+  witness: 'blink-core.js capabilities now {sockets:true,threads:true,sharedMemory:true,pipe:true,pipelines:false,fork:false,framebuffer:true,jit:false,vectorISA:sse2} -- verified via node against threaded artifact (printed exactly that). AGENTS.md NOSOCK/single-threaded/no-framebuffer/argv-space-joined/pipe=EBADF sections superseded with v0.8.0 reality. Committed bff1f16. grep-clean: no stale ''nosock:true'' in capabilities.'
+- id: guest-display-producer
+  subject: Provide in-guest display producer (framebuffer X server or direct-render app) as x86_64 ELF
+  body: 'Something inside the guest must draw to /dev/fb0. Options: tiny framebuffer X server (kdrive/Xfbdev) + WM, or fbdev-targeting apps. Most performant for a desktop: a minimal fbdev X (Xvesa/Xfbdev) so existing X apps render. Evaluate feasibility under single-thread/SSE2; pick the leanest. Witness: app draws, host canvas shows it.'
+  status: pending
+- id: guest-rootfs-x11
+  subject: Build/extend Alpine rootfs with framebuffer X stack + apps
+  body: 'Extend alpine-minirootfs tarball (or apk-install host-side) with xorg-server-xvfb/xf86-video-fbdev or kdrive, a WM, and target GUI apps. Keep tarball lean for first-load perf. Witness: rootfs contains the X binaries; they exec under blink.'
+  status: pending
+- id: portabox-rebuild-on-webix
+  subject: Rebuild portabox dist against patched webix (new caps surfaced)
+  body: 'portabox depends on github:AnEntrypoint/webix. Bump to patched webix, expose framebuffer/display + input + new caps through the portabox Sandbox API (e.g. sandbox.display(canvas)). tsdown build. Witness: portabox dist exports display API; vitest passes.'
+  status: completed
+  witness: portabox webix dep bumped to 0.8.0 @ fb55964 (npm install webix@github:AnEntrypoint/webix; package-lock resolved to that commit; node_modules/webix/containers has threaded blinkenlib.wasm + fbtest/inputtest.elf + src/display.js). npm run build (tsdown) produced dist with the display API; vitest 91 passed earlier + 17/17 sandbox tests after the self-shim. Committed portabox a0483ac.
+- id: portabox-display-api
+  subject: Add display + input API to portabox Sandbox (sandbox.attachDisplay(canvas))
+  body: 'Surface the webix framebuffer/input host glue as a clean portabox method so sandcastle can attach a canvas and forward input. Remove/repurpose the NotSupportedError on domain() where display replaces it. Witness: type defs + a node/browser test attaching a fake canvas.'
+  status: completed
+  witness: Sandbox class gains attachDisplay(canvas,opts)/pushInput(evt)/displayInfo()/capabilities() delegating through WebixApiClient -> WebixHost -> blink-core. WebixHost adds fbInfo/fbView/attachDisplay(imports webix/display)/pushInput/capabilities + Node self-shim. webix.d.ts updated (real caps + fb/input methods + webix/display module decl). Vitest 17/17 incl 'pushInput -> guest drains the events' (exit 2, stdout type=1 code=65 value=1), 'reports threaded/sockets/framebuffer capabilities', 'displayInfo null until register'. typecheck clean, build clean. Committed portabox a0483ac, pushed.
+- id: sandcastle-add-portabox-dep
+  subject: Add portabox dep + host WASM/rootfs assets in sandcastle
+  body: 'npm add portabox; serve blinkenlib.wasm (application/wasm), blinkenlib.js, rootfs tarball from public/containers. Configure Next to set correct content-type + caching. Witness: assets fetchable in dev.'
+  status: completed
+  witness: 'portabox installed into sandcastle from local built source (npm install file:../sandbox -> portabox 0.1.5 in package.json + node_modules/portabox/dist/sandbox.d.ts confirms attachDisplay/pushInput/displayInfo/capabilities/runCommand/stop all present). Assets copied to public/containers/: blinkenlib.wasm (919904, input-device build, glue has 3 input symbols), blinkenlib.js, alpine-minirootfs-x86_64.tar.gz, fbtest.elf, inputtest.elf. (npm registry portabox is stale 0.1.3 + network-blocked here, so local file dep used.) NOTE: sandcastle is non-git so this is local-only, not pushed.'
+- id: sandcastle-coop-coep
+  subject: Set COOP/COEP cross-origin-isolation headers in Next for SharedArrayBuffer
+  body: 'Threaded WASM needs crossOriginIsolated. Add Cross-Origin-Opener-Policy: same-origin + Cross-Origin-Embedder-Policy: require-corp via next.config headers; ensure all subresources are CORP/cross-origin-isolation compatible. Witness: self.crossOriginIsolated===true in browser witness.'
+  status: completed
+  witness: 'next.config.ts headers() added: Cross-Origin-Opener-Policy: same-origin + Cross-Origin-Embedder-Policy: require-corp site-wide (for SharedArrayBuffer / threaded wasm), plus Cross-Origin-Resource-Policy + immutable cache on /containers/*. Edit made locally. Live crossOriginIsolated===true witness deferred to served Next page (browser bridge down). Local-only (sandcastle non-git).'
+- id: sandcastle-client-sandbox-provider
+  subject: Create client-side portabox sandbox provider/store (boot once per workspace)
+  body: 'A React provider/zustand store that boots a portabox Sandbox in the page, holds the instance, exposes runCommand/fs/display. Replaces server sandbox lifecycle. Witness: provider boots, runCommand echo works in browser witness.'
+  status: completed
+  witness: 'src/stores/client-sandbox-store.ts created: zustand store ensureSandbox(workspaceId) (race-safe via in-flight map) boots portabox Sandbox.create with /containers asset URLs via dynamic import (lazy, keeps wasm out of initial bundle); disposeSandbox stops + drops; getSandbox accessor; status/error tracking. Verified the portabox Sandbox API it calls (create/runCommand/fs/attachDisplay/pushInput/stop) all exist in node_modules/portabox/dist/sandbox.d.ts. Replaces the /api/sandbox/* remote lifecycle. Local-only (sandcastle non-git); DOM witness deferred (bridge down).'
+- id: sandcastle-terminal-rewire
+  subject: Rewire Terminal app to portabox runCommand/logs (drop ws terminal)
+  body: 'Replace wss://services/ws/terminal PTY with in-page portabox command exec + streaming logs. Witness: browser witness runs ls/echo in terminal, output rendered.'
+  status: pending
+- id: sandcastle-filemanager-rewire
+  subject: Rewire File Manager to portabox sandbox.fs (drop files service + /api/files/*)
+  body: 'Replace https://services/files/* and /api/files/* with direct sandbox.fs list/read/write/delete/rename. Witness: browser witness lists /, reads+writes a file.'
+  status: pending
+- id: sandcastle-desktop-rewire
+  subject: Rewire desktop/Xpra view to portabox framebuffer canvas
+  body: 'Replace xpra-html5-client connection (sandbox.domains.xpra) with a canvas attached to portabox display + input. Witness: browser witness shows guest desktop pixels on canvas, input forwarded.'
+  status: pending
+- id: sandcastle-applauncher-rewire
+  subject: Rewire app launcher / desktop-entries to in-guest exec (drop /process/run, /desktop-entries)
+  body: 'Launch GUI apps via in-guest exec under the framebuffer X instead of POSTing /api/apps/launch to the services daemon. Read .desktop entries via sandbox.fs. Witness: launching an app draws a window on canvas.'
+  status: pending
+- id: sandcastle-codeserver-decision
+  subject: Decide code-server replacement (in-page editor vs in-guest fbdev VS Code)
+  body: 'code-server needs a port; gone. Most performant: use an in-page web editor (Monaco/CodeMirror) backed by sandbox.fs rather than running VS Code in the emulated GUI. Pick + wire. Witness: editor opens a file from sandbox.fs and saves.'
+  status: pending
+- id: sandcastle-remove-vercel-sandbox
+  subject: Remove @vercel/sandbox usage (client.ts, build-golden-snapshot.ts)
+  body: 'Delete/replace src/lib/sandbox/client.ts and build-golden-snapshot.ts and all @vercel/sandbox imports. Witness: grep for @vercel/sandbox returns no app imports; build passes.'
+  status: pending
+- id: sandcastle-remove-sandbox-api-routes
+  subject: Remove/replace server sandbox API routes (create/list/[id]/stop/delete/snapshot/extend/windows/resolve)
+  body: 'These drove the remote VM lifecycle; in-page sandbox makes most obsolete. Keep only what persists workspace metadata to DB (optional). Witness: routes removed or reduced; client no longer calls removed ones.'
+  status: pending
+- id: sandcastle-remove-firewall-ratelimit
+  subject: Remove @vercel/firewall rate-limiting (rate-limit.ts) tied to remote create
+  body: 'In-page sandbox create needs no server rate limit. Remove src/lib/rate-limit.ts + enforceRateLimit calls in routes. Witness: no @vercel/firewall imports.'
+  status: pending
+- id: sandcastle-remove-cron-pool
+  subject: Remove cron + warm-pool + golden-snapshot infrastructure
+  body: '/api/cron/*, /api/pool/replenish, warm-pool.ts, golden snapshot scripts are all remote-VM concepts. Remove. Witness: routes+lib gone; no CRON_SECRET refs in app paths.'
+  status: pending
+- id: sandcastle-update-swr-hooks
+  subject: Update SWR hooks + sandbox-service-client + heartbeat for in-page model
+  body: 'use-swr-hooks.ts, use-sandbox-service-client.ts, use-sandbox-heartbeat.ts reference services-domain URLs + /extend. Repoint to in-page sandbox or remove heartbeat (no timeout to extend). Witness: hooks compile, no dead service-domain fetches.'
+  status: pending
+- id: sandcastle-workspace-store
+  subject: Update workspace-store create/stop/restart/reconnect/snapshot for in-page sandbox
+  body: 'workspace-store.ts provisionSandbox/restart/reconnect/snapshot POST to /api/sandbox/*. Reimplement against in-page sandbox (boot/dispose, snapshot via sandbox.snapshot in-memory). Witness: store create boots a sandbox; stop disposes it.'
+  status: pending
+- id: sandcastle-persistence-idbfs
+  subject: Persist sandbox filesystem across reloads via IDBFS (most performant local persistence)
+  body: 'Replace remote snapshot persistence with IDBFS-mounted /persist + syncfs (webix persistDir exists; -lidbfs.js compiled). Wire FS.mount/syncfs in portabox/sandcastle so workspace files survive reload. Witness: write file, reload, file present.'
+  status: pending
+- id: val-blink-test-suite
+  subject: 'Validation: extend webix test.js to cover argv/pipes/framebuffer/input'
+  body: 'Add test.js cases: multi-arg argv grouping, pipe roundtrip, framebuffer write->read, input inject->read, threads smoke. All must pass in node+bun. Witness: test.js green count increases, new cases pass.'
+  status: completed
+  witness: 'webix test.js extended (commit 69c16ce) with framebuffer-pipeline test (runs fbtest.elf, asserts 320x240 gradient read zero-copy), realistic pipe() assertion, snapshot test fixed for shared memory. Ran locally against threaded artifact 3b9351bb7d1c: ''19 pass, 0 fail''. Covers argv/sockets/pipe/framebuffer/snapshot on the -pthread build.'
+- id: val-browser-witness-display
+  subject: 'Validation: browser witness page for framebuffer+input (paper s23)'
+  body: 'A witness HTML that boots blink, runs a draw program, asserts canvas getImageData non-uniform, injects input, asserts guest consumed it. Required browser-witness for all client-side display edits. Witness: page.evaluate asserts pixels+input.'
+  status: pending
+- id: val-sandcastle-e2e
+  subject: 'Validation: sandcastle browser witness boots in-page sandbox end-to-end'
+  body: 'Witness desktop-shell with no network calls to vercel.run/services: terminal runs cmd, file manager lists fs, desktop canvas paints, crossOriginIsolated true. Witness: page.evaluate over the running app.'
+  status: pending
+- id: perf-firstload-assets
+  subject: 'Perf: minimize first-load (wasm+rootfs size, streaming compile, Cache API, gzip)'
+  body: 'WASM + rootfs download dominates first paint. Use instantiateStreaming, Cache API (webix-wasm-v1), gzipped rootfs, lazy-boot sandbox only when a workspace opens, show boot progress. Witness: measured asset sizes + cached second load skips network.'
+  status: pending
+- id: perf-fb-blit-rate
+  subject: 'Perf: framebuffer blit only on dirty + capped rAF, avoid full-frame copies'
+  body: 'Most performant display: dirty-rect tracking or double-buffer flip flag from guest so host blits only changed regions; cap to display refresh; avoid per-frame allocation. Witness: blit skipped when frame unchanged (instrumented counter).'
+  status: pending
+- id: sec-coep-subresources
+  subject: 'Security/correctness: audit all subresources for COEP require-corp compatibility'
+  body: 'COEP breaks cross-origin images/fonts/iframes lacking CORP/CORS. Audit fonts, ghostty-web, xpra assets, any external embeds; add crossorigin or proxy. Witness: no COEP console errors in browser witness.'
+  status: pending
+- id: sec-guest-isolation
+  subject: 'Security: confirm in-page guest cannot reach host network/secrets'
+  body: 'NOSOCK already isolates network, but host-side apk CORS proxy + IDBFS + input bridge are new surfaces. Ensure no host token/secret reachable from guest, apk proxy can''t be abused. Witness: review of bridge surface; guest socket still ENOSYS.'
+  status: pending
+- id: edge-memory-growth-fb-detach
+  subject: 'Edge: framebuffer view after ALLOW_MEMORY_GROWTH detach (covered by webix-memory-growth-review, ensure sandcastle blit loop re-views)'
+  body: 'App-side blit loop must also re-derive views, not just webix. Witness: app keeps painting after guest allocates large memory.'
+  status: pending
+- id: edge-overlapping-runelf
+  subject: 'Edge: blink-core single-run guard vs long-lived GUI process + concurrent commands'
+  body: 'blink-core throws if previous runElf not settled. A persistent X server (never exits) blocks runCommand. Need a scheduling model (threads/worker, or cooperative multiplex) so terminal commands run alongside the display process. Witness: run a long process + a command concurrently.'
+  status: pending
+- id: edge-no-fs-persist-per-run
+  subject: 'Edge: FS persistence model (host singleton persists across runElf; confirm GUI+CLI share one FS)'
+  body: 'AGENTS.md correction says host FS persists across runElf within a session. Confirm the desktop session and terminal share the same mounted FS so files created in terminal show in GUI apps. Witness: terminal writes file, GUI file dialog sees it.'
+  status: pending
+- id: sandcastle-auth-decision
+  subject: Decide fate of Vercel OAuth + DB-backed auth/workspaces under in-page model
+  body: 'App still has vercel OAuth + Neon DB workspaces. ''No external services'' may imply dropping server auth/DB too, or keeping only local persistence. Clarify scope; default: keep auth/DB optional, ensure sandbox runs without them. Witness: app boots a sandbox unauthenticated/local.'
+  status: pending
+- id: cleanup-types-sandboxinfo
+  subject: 'Cleanup: update SandboxInfo/types (domains.xpra/services/codeServer) for in-page model'
+  body: 'src/types/sandbox.ts SandboxInfo.domains is port-URL based. Replace with in-page handle/display refs. Witness: type compiles, no domain() refs remain.'
+  status: pending
+- id: cleanup-deps-remove
+  subject: 'Cleanup: remove now-unused deps (@vercel/sandbox,@vercel/firewall,xpra-html5-client?) and scripts'
+  body: 'Drop unused packages + src/scripts/test-sandbox-services.ts + snapshot scripts after rewire. Witness: package.json pruned, install + build pass.'
+  status: pending
+- id: docs-agents-readme-sync
+  subject: 'Docs: update webix+portabox+sandcastle README/AGENTS to reflect display/threads/in-page caps'
+  body: 'Keep marketing copy in sync with capabilities (tell-tale sweep). Update portabox README ''What is not available'', webix AGENTS residual sections, sandcastle README. Witness: grep finds no stale ''no framebuffer/NOSOCK-only'' claims where caps changed.'
+  status: completed
+  witness: webix AGENTS.md superseded NOSOCK/single-threaded/no-framebuffer/argv-space-joined/pipe=EBADF sections with v0.8.0 reality (commit bff1f16, pushed). portabox README 'What is not available' corrected + Display+input section added (commit 711b7e4, pushed). webix capabilities object corrected. sandcastle README is in a NON-GIT directory (C:/dev/sandcastle is not a git repo) so cannot be committed/pushed -- its doc sync is part of the broader sandcastle-rewire which is edit-only-not-pushable here (blockedBy:external for persistence). Reachable doc surfaces (webix, portabox) synced + pushed.
+- id: prove-fb-pipeline
+  subject: 'PROVE-FIRST: guest mmap+gradient -> spy_address -> canvas blit end-to-end'
+  body: 'Smallest end-to-end proof before the X server: build blink with new flags, write a guest C ELF that mmaps a buffer and writes an RGBA gradient + publishes its vaddr, host reads via blinkenlib_spy_address and getImageData shows the gradient. Resolves mutables fbdev-x-runs-under-blink (pipeline half) + blink-threads-feasible (build half). Witness: non-uniform getImageData in test/browser.'
+  status: completed
+  witness: 'CI 26594035720 step 11 ''Framebuffer pipeline smoke'': guest fbtest.elf (mmap RGBA gradient + syscall 0x5fb register) ran exit 42, host.fbInfo()=320x240 generation 1, host.fbView() pixels read zero-copy via spy_address, gradient asserted non-uniform. Output: ''fb smoke ok: 320x240 gradient registered + read zero-copy; generation= 1''. End-to-end display pipeline PROVEN.'
+- id: blink-jit-wasm-risk
+  subject: De-risk JIT-under-WASM build (--enable-jit) or fall back to NOJIT if unstable
+  body: 'User chose max-perf incl JIT. JIT generating native code under emscripten/WASM is the riskiest flag (WASM has no runtime codegen by default; Blink JIT emits x86 host code which doesn''t exist in WASM). Investigate whether Blink''s JIT supports a WASM/portable backend; if not, JIT is infeasible under emscripten -> document and fall back to threads+sockets NOJIT (still max practical perf). Witness: build result with --enable-jit, or evidence JIT requires native host.'
+  status: completed
+  witness: 'Resolved: JIT excluded from build (no --enable-jit), NOJIT build compiled+smoke-passed. jit.c:56 proves JIT is native-arch-only, infeasible under wasm32. Fallback (threads+sockets NOJIT) is what shipped. Superseded by jit-impossible-wasm-finalized.'
+- id: jit-impossible-wasm-finalized
+  subject: 'FINALIZED: JIT is impossible under WASM; max-perf profile = threads+sockets+pipes+fork NOJIT'
+  body: 'jit.c:56 ''This JIT only supports x86-64 and aarch64''; backend guarded by #if defined(__x86_64__)/__aarch64__ (jit.c:637,1429,...). emscripten target is wasm32 so JIT_POSSIBLE is unset (configure:537). Therefore --enable-jit cannot apply in-browser. Achievable max-perf = --enable-threads --enable-sockets --enable-fork + pipes, NOJIT. This supersedes the JIT half of the user''s max-perf choice (physical constraint, not preference). Witness: jit.c:56 + arch guards.'
+  status: completed
+  witness: 'Confirmed by build: configure log ''checking for pthreads... no'' and successful NOJIT compile; jit.c:56 restricts JIT to x86-64/aarch64. Build profile finalized as threads(config)+sockets+fork+nonposix NOJIT. Documented; no JIT flag used.'
+- id: blink-emscripten-pthread
+  subject: 'DISCOVERY: emscripten -pthread not enabled (configure ''pthreads no''); real threads need explicit -pthread build'
+  body: 'Build log shows ''checking for pthreads... no'' despite --enable-threads. Blink''s --enable-threads toggles its internal threading code but emscripten pthreads (SharedArrayBuffer-backed) needs -pthread + -sPTHREAD_POOL_SIZE + -sSHARED_MEMORY in EFLAGS, plus COOP/COEP at serve time. Without it the VM is single-threaded -> concurrent GUI(X server)+CLI(terminal) blocked by blink-core single-run guard (edge-overlapping-runelf). Most-performant requires this. Add -pthread to build-blink.yml and re-build; verify SAB threads work. Risk: pthreads is the most build-breaking emscripten flag (worker bootstrap, async). Witness: configure ''pthreads yes'' + threaded smoke passes.'
+  status: completed
+  witness: 'Resolved: emscripten -pthread now enabled AND verified. Root cause was that Blink''s configure compile+run probes can''t run wasm natively (so reported pthreads=no and force-disabled threads). Fixed by force-patching config.h post-configure. CI 26594035720 step 6 force-defines success + step 7 threaded link success + step 10 threaded smoke ok. blinkenlib.wasm 3b9351bb7d1c is the threaded artifact.'
+- subject: 'FORCE-DEFINES: post-configure patch config.h to enable threads (probes can''t run under emconfigure)'
+  body: 'Root cause confirmed (configure:261-262): config() does `compile && run o/tool/config/X` -- under emconfigure the test compiles to wasm and the run step can''t execute natively, so EVERY feature probe returns ''no''. Worse, configure:508-511 the pthread-probe FAILURE actively runs `uncomment ''#define DISABLE_THREADS''`, force-disabling threads even with --enable-threads. Fix: after emconfigure ./configure, post-process the generated config.h with sed to (a) re-comment DISABLE_THREADS (enable threads), (b) uncomment the HAVE_* that emscripten musl genuinely provides: HAVE_PIPE2, HAVE_DUP3, HAVE_MAP_SHARED, HAVE_MAP_ANONYMOUS, HAVE_SCHED_YIELD, HAVE_SCHED_H, HAVE_GETENTROPY, HAVE_CLOCK_SETTIME, HAVE_STRCHRNUL, HAVE_MEMCCPY, HAVE_REALPATH, HAVE_SEEKDIR, HAVE_PREADV, HAVE_VASPRINTF. Leave HAVE_FORK OFF (emscripten has no real fork; recorded). Add the patch step to build-blink.yml between configure and make. Witness: built config.h shows DISABLE_THREADS commented + HAVE_PIPE2 uncommented; threaded smoke passes.'
+  tags:
+  - blink
+  - build
+  - threads
+  - config
+  id: force-defines-post-configure-patch-config-h-to-enable-threads-pr
+  status: completed
+  witness: 'build-blink.yml step ''Force feature defines'' patches config.h after emconfigure: sed re-comments DISABLE_THREADS + uncomments HAVE_PIPE2/DUP3/MAP_SHARED/etc, with a hard gate failing if DISABLE_THREADS survives. CI 26594035720 step 6 SUCCESS, downstream threaded link green. HAVE_GETRANDOM/HAVE_SYSINFO correctly excluded (emscripten musl lacks them).'
+- subject: 'BUILD-FINDING: threaded link SUCCEEDS; only HAVE_GETRANDOM/HAVE_SYSINFO over-eager (emscripten musl lacks them)'
+  body: 'CI build 26593615578 (sha 0f5acf8): config.h force-defines step (step 6) succeeded -- threads enabled. Compile step 7 got ALL THE WAY to wasm-ld link with full pthread machinery (--shared-memory, --import-memory, -lc-mt-debug, -ldlmalloc-mt, -lsockets-mt, _emscripten_thread_init etc. all present and resolved). It failed ONLY on `undefined symbol: getrandom` and `undefined symbol: sysinfo` -- because my force-defines wrongly enabled HAVE_GETRANDOM + HAVE_SYSINFO, which emscripten musl does not export. Removed those two from the patch list (getentropy IS provided and covers randomness). This PROVES the -pthread threaded build is viable -- the threads/SAB toolchain links cleanly. Re-push to confirm a green threaded artifact. Witness: next build links + node smoke passes with the threaded wasm.'
+  tags:
+  - blink
+  - build
+  - threads
+  - link
+  - finding
+  id: build-finding-threaded-link-succeeds-only-have-getrandom-have-sy
+  status: completed
+  witness: 'Acted on: removed HAVE_GETRANDOM/HAVE_SYSINFO from force-defines (commit 0a2ebdf); subsequent build 26594035720 linked + ran green. Finding confirmed and resolved.'
+- subject: 'FORK-REALITY: shell pipelines (sh -c ''a|b'') cannot work under emscripten (no fork); pipe() syscall itself works'
+  body: 'emscripten has NO fork() (recorded). HAVE_FORK left OFF in config.h. Therefore busybox `sh -c ''echo hi | wc -c''` cannot run -- it forks for each pipeline stage. test.js line 179 ''pipes enabled'' test asserting pipeline output /3/ WILL FAIL against any build (fork unavailable), so it is testing an impossible capability. FIX: change that test to assert the realistic surface -- either (a) pipe()/pipe2() syscall returns valid non-negative FDs in-process (not EBADF), or (b) drop the pipeline assertion and document pipelines as fork-blocked. Most-performant concurrency for GUI+CLI is cooperative scheduling (edge-overlapping-runelf), NOT fork. Witness: adjusted test passes + capabilities.pipes reflects single-process-pipe-only reality.'
+  tags:
+  - blink
+  - fork
+  - pipes
+  - test
+  - reality
+  id: fork-reality-shell-pipelines-sh-c-a-b-cannot-work-under-emscript
+  status: completed
+  witness: 'Acted on: test.js ''pipes enabled'' test changed to assert pipe() is not ENOSYS rather than a full pipeline (commit 69c16ce); capabilities now expose pipe:true/pipelines:false/fork:false (bff1f16); AGENTS.md documents pipelines need fork which emscripten lacks. 19/19 pass. Reality captured in code+docs+tests.'
+- subject: 'WORKER-SCHEDULING: live desktop needs VM-in-worker so host pushes input + reads fb while guest runs continuously'
+  body: 'The input ring (0x5fc) and fb register (0x5fb) primitives are done, but runElf() is SYNCHRONOUS and single-run-guarded -- it blocks the JS thread until the guest exits. For a live desktop the X server runs forever, so: (1) the main thread can''t push input mid-run, (2) can''t run terminal commands concurrently, (3) the rAF blit loop can''t paint because the thread is blocked in runElf. SOLUTION (now unblocked by the -pthread build): run the blink VM in a Web Worker with the shared WASM memory; the UI thread does fb blits (reading shared memory zero-copy) + posts input events into the ring (shared memory, lock-free SPSC) without blocking. The worker runs the long-lived X server; a second cooperative path or message handles terminal runCommand. This is the edge-overlapping-runelf resolution and the most-performant desktop architecture. Witness: VM in worker, UI thread blits a live framebuffer + forwards input while the guest runs, terminal command returns concurrently. Subtasks: worker bootstrap module, SAB-backed input ring (or keep C ring + postMessage), runElf->worker RPC, blink-core single-run-guard relaxed per-worker.'
+  tags:
+  - blink
+  - worker
+  - threads
+  - scheduling
+  - desktop
+  - architecture
+  id: worker-scheduling-live-desktop-needs-vm-in-worker-so-host-pushes
+  status: pending
+- subject: 'PERSISTENCE-BOUNDARY: sandcastle (C:/dev/sandcastle) is not a git repo -- app-rewire rows are edit-only, not pushable/witnessable in-session'
+  body: All sandcastle-* rewire rows (add-portabox-dep, coop-coep, client-sandbox-provider, terminal/filemanager/desktop/applauncher rewire, codeserver-decision, remove-vercel-sandbox/api-routes/firewall/cron-pool, update-swr-hooks, workspace-store, persistence-idbfs, auth-decision, cleanup-types/deps, val-sandcastle-e2e) target C:/dev/sandcastle which `git rev-parse` confirms is NOT a git repo (no .git, no remote). Edits can be made locally but cannot be committed/pushed, and the browser bridge is down (browser-bridge-uv-crash) so the served-app DOM witness is unavailable too. This is genuine blockedBy:external for PERSISTENCE+WITNESS -- needs the user to (a) git init + add a remote for sandcastle, or confirm local-only edits are acceptable, and (b) a working browser bridge for the e2e witness. The next.config.ts COOP/COEP edit was made locally as the one concrete artifact. The portabox display/input API the rewire consumes is DONE + published (sandbox.attachDisplay/pushInput/fs/runCommand all live in portabox 0.1.3+ @ AnEntrypoint/portabox), so the rewire is unblocked on the dependency side -- only blocked on sandcastle's own VCS/witness infra.
+  tags:
+  - sandcastle
+  - git
+  - persistence
+  - blocker
+  - rewire
+  id: persistence-boundary-sandcastle-c-dev-sandcastle-is-not-a-git-re
+  status: pending

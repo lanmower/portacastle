@@ -1,0 +1,4 @@
+./src/app/api/files/list/route.ts:5:7 
+(url) => ({
+    path: url.searchParams.get("path") || "/vercel/sandbox",
+  })

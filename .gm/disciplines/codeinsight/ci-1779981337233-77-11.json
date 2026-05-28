@@ -1,0 +1,38 @@
+./src/app/api/admin/golden-snapshot/route.ts:77:113 POST
+async function POST(req: Request) {
+  const session = await getSession();
+  if (!session || session.role !== "admin") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const action = body.action as string;
+
+  if (action === "rebuild") {
+    const result = await buildGoldenSnapshot({
+      installScript: body.installScript,
+      logPrefix: "admin:golden-snapshot",
+    });
+
+    await expireOldSnapshotVMs();
+    await prunePool();
+    const pool = await replenishPool();
+
+    return NextResponse.json({ ok: true, ...result, pool });
+  }
+
+  if (action === "replenish") {
+    await expireOldSnapshotVMs();
+    await prunePool();
+    const result = await replenishPool();
+    return NextResponse.json({ ok: true, ...result });
+  }
+
+  if (action === "prune") {
+    await expireOldSnapshotVMs();
+    const pruned = await prunePool();
+    return NextResponse.json({ ok: true, pruned });
+  }
+
+  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+}

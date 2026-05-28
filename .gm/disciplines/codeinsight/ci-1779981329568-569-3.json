@@ -1,0 +1,67 @@
+./src/app/admin/page.tsx:569:634 WorkspacesTab
+function WorkspacesTab({ stats }: { stats: AdminStats }) {
+  return (
+    <div className="rounded-lg border border-gray-alpha-400 bg-background-100 overflow-hidden">
+      <table className="w-full">
+        <thead>
+          <tr className="border-b border-gray-alpha-400 bg-background-200">
+            <th className="px-4 py-3 text-left text-label-13 font-medium text-gray-900">
+              Name
+            </th>
+            <th className="px-4 py-3 text-left text-label-13 font-medium text-gray-900">
+              Owner
+            </th>
+            <th className="px-4 py-3 text-left text-label-13 font-medium text-gray-900">
+              Status
+            </th>
+            <th className="px-4 py-3 text-right text-label-13 font-medium text-gray-900">
+              Created
+            </th>
+            <th className="px-4 py-3 text-right text-label-13 font-medium text-gray-900">
+              Updated
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {stats.recentWorkspaces.map((ws) => (
+            <tr
+              key={ws.id}
+              className="border-b border-gray-alpha-200 last:border-0 hover:bg-gray-alpha-100 transition-colors"
+            >
+              <td className="px-4 py-3 text-copy-14 text-gray-1000 font-medium">
+                {ws.name}
+              </td>
+              <td className="px-4 py-3 text-copy-14 text-gray-900">
+                {ws.userEmail ?? ws.userName ?? "--"}
+              </td>
+              <td className="px-4 py-3">
+                <Badge
+                  variant={statusColors[ws.status] ?? "gray"}
+                  size="sm"
+                >
+                  {ws.status}
+                </Badge>
+              </td>
+              <td className="px-4 py-3 text-copy-13 text-gray-700 text-right">
+                {new Date(ws.createdAt).toLocaleDateString()}
+              </td>
+              <td className="px-4 py-3 text-copy-13 text-gray-700 text-right">
+                {new Date(ws.updatedAt).toLocaleDateString()}
+              </td>
+            </tr>
+          ))}
+          {stats.recentWorkspaces.length === 0 && (
+            <tr>
+              <td
+                colSpan={5}
+                className="px-4 py-8 text-center text-copy-14 text-gray-700"
+              >
+                No workspaces found
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}

@@ -1,0 +1,2 @@
+./src/app/api/files/delete/route.ts:6:6 
+({ path }) => ({ path })

@@ -1,0 +1,100 @@
+./src/app/admin/page.tsx:405:503 OverviewTab
+function OverviewTab({ stats }: { stats: AdminStats }) {
+  const chartColors = {
+    active: "var(--ds-green-600)",
+    stopped: "var(--ds-gray-600)",
+    snapshotted: "var(--ds-blue-600)",
+    creating: "var(--ds-amber-600)",
+    error: "var(--ds-red-600)",
+  };
+
+  const roleChartColors = {
+    admin: "var(--ds-purple-600)",
+    user: "var(--ds-blue-600)",
+    guest: "var(--ds-gray-500)",
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="Total Users"
+          value={stats.users.total}
+          subtitle={`${stats.users.regular} registered, ${stats.users.guests} guests`}
+        />
+        <StatCard
+          title="Total Workspaces"
+          value={stats.workspaces.total}
+          subtitle={`${stats.workspaces.active} active`}
+        />
+        <StatCard
+          title="Warm Pool"
+          value={stats.warmPool.available}
+          subtitle={`${stats.warmPool.available} available of ${stats.warmPool.total}`}
+        />
+        <StatCard
+          title="Error Workspaces"
+          value={stats.workspaces.error}
+          subtitle="Workspaces in error state"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <AreaChart data={stats.usersByDay} title="User Signups Over Time" />
+        <DonutChart
+          title="Workspaces by Status"
+          data={stats.workspacesByStatus.map((d) => ({
+            label: d.status,
+            value: d.count,
+            color:
+              chartColors[d.status as keyof typeof chartColors] ??
+              "var(--ds-gray-500)",
+          }))}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <DonutChart
+          title="Users by Role"
+          data={[
+            {
+              label: "Admin",
+              value: stats.users.admins,
+              color: roleChartColors.admin,
+            },
+            {
+              label: "User",
+              value: stats.users.regular,
+              color: roleChartColors.user,
+            },
+            {
+              label: "Guest",
+              value: stats.users.guests,
+              color: roleChartColors.guest,
+            },
+          ]}
+        />
+        <BarChart
+          title="Warm Pool Distribution"
+          data={[
+            {
+              label: "Available",
+              value: stats.warmPool.available,
+              color: "var(--ds-green-600)",
+            },
+            {
+              label: "Claimed",
+              value: stats.warmPool.claimed,
+              color: "var(--ds-blue-600)",
+            },
+            {
+              label: "Expired",
+              value: stats.warmPool.expired,
+              color: "var(--ds-gray-600)",
+            },
+          ]}
+        />
+      </div>
+    </div>
+  );
+}

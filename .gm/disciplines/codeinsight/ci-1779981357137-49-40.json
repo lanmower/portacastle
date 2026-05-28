@@ -1,0 +1,45 @@
+./src/app/api/sandbox/[id]/route.ts:49:92 PATCH
+async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const result = await getAuthedWorkspace(params);
+  if (result instanceof NextResponse) return result;
+  const { session, workspace } = result;
+
+  const body = await req.json();
+
+  // If renaming, enforce unique names per user
+  if (body.name) {
+    const existing = await db
+      .select({ id: workspaces.id, name: workspaces.name })
+      .from(workspaces)
+      .where(and(eq(workspaces.userId, session.id)));
+    const conflict = existing.find(
+      (w) => w.id !== workspace.id && w.name.toLowerCase() === body.name.toLowerCase(),
+    );
+    if (conflict) {
+      return NextResponse.json(
+        { error: "A workspace with that name already exists" },
+        { status: 409 },
+      );
+    }
+  }
+
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (body.icon !== undefined) updates.icon = body.icon;
+  if (body.name !== undefined) updates.name = body.name;
+  if (body.background !== undefined) updates.background = body.background;
+
+  const [updated] = await db
+    .update(workspaces)
+    .set(updates)
+    .where(and(eq(workspaces.id, workspace.id), eq(workspaces.userId, session.id)))
+    .returning();
+
+  if (!updated) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ workspace: updated });
+}

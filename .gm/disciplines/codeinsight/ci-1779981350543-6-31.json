@@ -1,0 +1,2 @@
+./src/app/api/files/read/route.ts:6:6 
+(url) => ({ path: url.searchParams.get("path")! })

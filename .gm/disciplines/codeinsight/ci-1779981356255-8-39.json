@@ -1,0 +1,12 @@
+./src/app/api/sandbox/[id]/extend/route.ts:8:18 isSandboxGone
+function isSandboxGone(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message;
+  return (
+    msg.includes("410") ||
+    msg.includes("404") ||
+    msg.includes("not found") ||
+    msg.includes("gone") ||
+    msg.includes("expired")
+  );
+}
