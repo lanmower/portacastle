@@ -9,8 +9,7 @@ import {
 import { useActiveSandbox } from "@/stores/workspace-store";
 import { useWindowStore } from "@/stores/window-store";
 import { useXpraStore } from "@/stores/xpra-store";
-import { useDirectoryListing } from "@/lib/hooks/use-swr-hooks";
-import { useSandboxServiceClient } from "@/lib/hooks/use-sandbox-service-client";
+import { useSandboxFs, useSandboxFsMutations } from "@/lib/hooks/use-sandbox-fs";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
 import { Toolbar, StatusBar, ListView, SplitPane, EmptyState } from "@/components/os-primitives";
 import {
@@ -108,17 +107,17 @@ export function FileManager() {
   const [selected, setSelected] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [mutating, setMutating] = useState<string | null>(null);
-  const { sandbox } = useActiveSandbox();
+  const { activeWorkspaceId } = useActiveSandbox();
   const openWindow = useWindowStore((s) => s.openWindow);
   const launchApp = useXpraStore((s) => s.launchApp);
-  const { servicesDomain, post: postService } = useSandboxServiceClient();
+  const { writeFile, mkdir, rename, remove } = useSandboxFsMutations(activeWorkspaceId);
   const {
     entries,
     isLoading,
     isValidating,
     error: swrError,
     revalidate,
-  } = useDirectoryListing(servicesDomain, cwd);
+  } = useSandboxFs(activeWorkspaceId, cwd);
   const error = swrError?.message ?? null;
 
   const historyRef = useRef<string[]>([HOME]);
@@ -209,11 +208,11 @@ export function FileManager() {
       const name = parseEntryName(input);
       if (hasNameConflict(name)) throw new Error(`"${name}" already exists.`);
       const path = buildChildPath(cwd, name);
-      await postService("/files/write", { path, content: "" });
+      await writeFile(path, "");
       await revalidate();
       setSelected(path);
     });
-  }, [cwd, hasNameConflict, postService, revalidate, runMutation]);
+  }, [cwd, hasNameConflict, writeFile, revalidate, runMutation]);
 
   const createFolder = useCallback(() => {
     const input = globalThis.prompt("New folder name:");
@@ -222,11 +221,11 @@ export function FileManager() {
       const name = parseEntryName(input);
       if (hasNameConflict(name)) throw new Error(`"${name}" already exists.`);
       const path = buildChildPath(cwd, name);
-      await postService("/files/mkdir", { path });
+      await mkdir(path);
       await revalidate();
       setSelected(path);
     });
-  }, [cwd, hasNameConflict, postService, revalidate, runMutation]);
+  }, [cwd, hasNameConflict, mkdir, revalidate, runMutation]);
 
   const renameEntry = useCallback(() => {
     if (!selectedEntry) return;
@@ -237,11 +236,11 @@ export function FileManager() {
       if (nextName === selectedEntry.name) return;
       if (hasNameConflict(nextName, selectedEntry.path)) throw new Error(`"${nextName}" already exists.`);
       const nextPath = buildChildPath(getParentPath(selectedEntry.path), nextName);
-      await postService("/files/rename", { oldPath: selectedEntry.path, newPath: nextPath });
+      await rename(selectedEntry.path, nextPath);
       await revalidate();
       setSelected(nextPath);
     });
-  }, [hasNameConflict, postService, revalidate, runMutation, selectedEntry]);
+  }, [hasNameConflict, rename, revalidate, runMutation, selectedEntry]);
 
   const deleteEntry = useCallback(() => {
     if (!selectedEntry) return;
@@ -250,11 +249,11 @@ export function FileManager() {
     );
     if (!ok) return;
     runMutation("delete", async () => {
-      await postService("/files/delete", { path: selectedEntry.path });
+      await remove(selectedEntry.path, selectedEntry.isDirectory);
       setSelected(null);
       await revalidate();
     });
-  }, [postService, revalidate, runMutation, selectedEntry]);
+  }, [remove, revalidate, runMutation, selectedEntry]);
 
   const sortedEntries = useMemo(() => {
     let filtered = entries;
@@ -271,7 +270,7 @@ export function FileManager() {
   // Determine which sidebar item is active
   const activeSidebarId = SIDEBAR_ITEMS.find((item) => cwd === item.path)?.id ?? null;
 
-  if (!sandbox) {
+  if (!activeWorkspaceId) {
     return <NoWorkspacePlaceholder message="No active workspace. Create one to browse files." />;
   }
 
