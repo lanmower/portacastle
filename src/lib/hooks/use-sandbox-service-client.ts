@@ -103,7 +103,11 @@ export function buildServiceUrl(
  */
 export function useSandboxServiceClient() {
   const { sandbox } = useActiveSandbox();
-  const servicesDomain = sandbox?.domains?.services ?? null;
+  // Remote services backend removed in favor of the in-page portabox sandbox.
+  // There is no longer a services domain, so this is always null and `post`
+  // is a no-op that rejects. Callers already handle the absent-services case.
+  void sandbox;
+  const servicesDomain: string | null = null;
 
   const serviceUrl = useCallback(
     (path: string): string | null => buildServiceUrl(servicesDomain, path),
@@ -111,15 +115,11 @@ export function useSandboxServiceClient() {
   );
 
   const post = useCallback(
-    async <T = unknown>(path: string, body: Record<string, unknown>) => {
-      if (!servicesDomain) throw new Error("No active sandbox");
-      return sandboxServicePost<T>(
-        `https://${servicesDomain}`,
-        path,
-        body,
-      );
+    async <T = unknown>(_path: string, _body: Record<string, unknown>): Promise<T> => {
+      // No remote services daemon to POST to anymore.
+      throw new Error("No active sandbox");
     },
-    [servicesDomain],
+    [],
   );
 
   return useMemo(

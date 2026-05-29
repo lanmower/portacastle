@@ -3,7 +3,14 @@ import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { accounts } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { WORKSPACE_LIMITS } from "@/lib/sandbox/limits";
+
+// In-page sandboxes consume no remote quota, so workspaces are unlimited
+// regardless of role (the old remote-VM per-role caps are gone).
+const WORKSPACE_LIMITS: Record<string, number> = {
+  admin: Infinity,
+  user: Infinity,
+  guest: Infinity,
+};
 
 export async function GET() {
   const session = await getSession();

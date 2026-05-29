@@ -3,36 +3,28 @@
 import { useActiveSandbox } from "@/stores/workspace-store";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
 
-export function CodeServerApp({ meta }: { meta?: Record<string, unknown> }) {
-  const { sandbox } = useActiveSandbox();
+export function CodeServerApp({ meta: _meta }: { meta?: Record<string, unknown> }) {
+  const { activeWorkspaceId } = useActiveSandbox();
 
-  if (!sandbox) {
+  if (!activeWorkspaceId) {
     return (
       <NoWorkspacePlaceholder message="No active workspace. Create one to use Code." />
     );
   }
 
-  const filePath = typeof meta?.filePath === "string" ? meta.filePath : null;
-
-  const base = `https://${sandbox.domains.codeServer}`;
-  const params = new URLSearchParams({ folder: "/vercel/sandbox" });
-
-  if (filePath) {
-    params.set(
-      "payload",
-      JSON.stringify([["openFile", `vscode-remote://remote${filePath}`]]),
-    );
-  }
-
-  const src = `${base}/?${params.toString()}`;
-
+  // The remote code-server (served over a port via sandbox.domains.codeServer)
+  // no longer exists — everything runs in-page via portabox. The planned
+  // replacement is an in-page Monaco/CodeMirror editor backed by sandbox.fs,
+  // which is not yet wired up.
   return (
-    <iframe
-      src={src}
-      className="h-full w-full border-0"
-      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads"
-      allow="clipboard-read; clipboard-write"
-      title="VS Code"
-    />
+    <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-6 text-center text-gray-900">
+      <div className="text-sm font-medium text-gray-1000">In-browser editor</div>
+      <p className="max-w-md text-sm text-gray-900">
+        This editor is backed by the in-page sandbox filesystem. The previous
+        code-server-over-a-port integration is no longer used. An in-page editor
+        (Monaco/CodeMirror over <code>sandbox.fs</code>) is planned but not yet
+        wired up.
+      </p>
+    </div>
   );
 }

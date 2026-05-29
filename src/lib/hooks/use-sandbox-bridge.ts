@@ -47,9 +47,11 @@ export function useDbusNotifications() {
   const sinceRef = useRef(Date.now());
   const addNotification = useNotificationStore((s) => s.addNotification);
 
-  const servicesUrl = sandbox?.domains.services
-    ? `https://${sandbox.domains.services}`
-    : null;
+  // Remote services backend removed in favor of the in-page portabox sandbox.
+  // There is no longer a services domain, so this bridge is disabled (no-op):
+  // the SWR key stays null and nothing is fetched.
+  void sandbox;
+  const servicesUrl: string | null = null;
 
   const { data } = useSWR<BridgeNotificationsResponse>(
     servicesUrl
@@ -109,9 +111,10 @@ export function useDesktopEntryMonitor() {
   const generationRef = useRef<number | null>(null);
   const fetchRemoteApps = useDesktopStore((s) => s.fetchRemoteApps);
 
-  const servicesUrl = sandbox?.domains.services
-    ? `https://${sandbox.domains.services}`
-    : null;
+  // Remote services backend removed in favor of the in-page portabox sandbox.
+  // No services domain anymore, so the desktop-entry monitor is disabled (no-op).
+  void sandbox;
+  const servicesUrl: string | null = null;
 
   const { data } = useSWR<AppsGenerationResponse>(
     servicesUrl ? `${servicesUrl}/bridge/apps-generation` : null,
@@ -126,7 +129,8 @@ export function useDesktopEntryMonitor() {
   );
 
   useEffect(() => {
-    if (data == null || !sandbox?.domains.services) return;
+    // Disabled: no remote services domain to fetch desktop entries from.
+    if (data == null) return;
     const gen = data.generation;
 
     if (generationRef.current === null) {
@@ -137,7 +141,6 @@ export function useDesktopEntryMonitor() {
 
     if (gen !== generationRef.current) {
       generationRef.current = gen;
-      fetchRemoteApps(sandbox.domains.services);
     }
-  }, [data, sandbox?.domains.services, fetchRemoteApps]);
+  }, [data, fetchRemoteApps]);
 }

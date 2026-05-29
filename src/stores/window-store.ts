@@ -273,19 +273,23 @@ export const useWindowStore = create<WindowStore>((set, get) => ({
   },
 }));
 
-// Debounced sync to persist window state to the server (non-blocking)
+// Debounced sync to persist window layout. The remote /api/sandbox/${id}/windows
+// endpoint is gone; layout now round-trips through localStorage so it survives
+// reloads within the same browser. No network call is made.
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
+
+function windowsStorageKey(wsId: string) {
+  return `sandcastle:windows:${wsId}`;
+}
 
 function doSync(workspaceId?: string) {
   const state = useWindowStore.getState();
   const wsId = workspaceId || state.activeWorkspaceId;
   if (!wsId) return;
   const windows = state.windowsByWorkspace[wsId] || [];
-  fetch(`/api/sandbox/${wsId}/windows`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ windows }),
-  }).catch(() => {});
+  try {
+    localStorage.setItem(windowsStorageKey(wsId), JSON.stringify(windows));
+  } catch {}
 }
 
 function scheduleSync() {

@@ -710,7 +710,7 @@ function WorkspacesTab() {
                 <PropertyPanel className="mb-4 rounded-lg border border-gray-alpha-200">
                   <PropertyPanel.Section>
                     <PropertyPanel.Row label="Sandbox ID" mono>{activeSandbox.sandboxId}</PropertyPanel.Row>
-                    <PropertyPanel.Row label="Timeout" value={`${Math.round(activeSandbox.timeout / 60000)} min`} />
+                    <PropertyPanel.Row label="Runtime" value="In-page (no timeout)" />
                   </PropertyPanel.Section>
                 </PropertyPanel>
               )}

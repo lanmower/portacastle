@@ -18,7 +18,6 @@ import {
   useWorkspaces,
   useWorkspace,
   useWindowState,
-  mutateWorkspaces,
 } from "@/lib/hooks/use-swr-hooks";
 import { Spinner } from "@/components/ui/spinner";
 import { Note } from "@/components/ui/note";
@@ -230,14 +229,9 @@ export function DesktopShell({ user, targetSlug }: DesktopShellProps) {
     }
   }, [activeWorkspaceId, sandboxLost, canRecover, creatingStatus, reconnectWorkspace]);
 
-  // ---- Fetch desktop entries when sandbox becomes available ----
-  const servicesDomain = activeSandbox?.domains?.services ?? null;
-  const fetchedServicesRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!servicesDomain || fetchedServicesRef.current === servicesDomain) return;
-    fetchedServicesRef.current = servicesDomain;
-    useDesktopStore.getState().fetchRemoteApps(servicesDomain);
-  }, [servicesDomain]);
+  // Desktop entries used to be fetched from the remote services daemon
+  // (activeSandbox.domains.services). That backend is gone; in-guest app
+  // launching now runs via the in-page sandbox (sandcastle-applauncher-rewire).
 
   // ---- SWR: window state for active workspace ----
   const { windows: windowStateData } = useWindowState(activeWorkspaceId);
@@ -359,6 +353,10 @@ export function DesktopShell({ user, targetSlug }: DesktopShellProps) {
   }, [activeWorkspaceId, windowStateData]);
 
   // ---- Hydrate sandbox info for non-active workspaces ----
+  // Previously this polled the remote /api/sandbox/${id} endpoint to detect
+  // "lost" sandboxes and backfill SandboxInfo. There is no remote sandbox to
+  // poll anymore — in-page sandboxes can't be lost — so we synthesize local
+  // SandboxInfo for any active workspace that doesn't have it yet.
   const hydratedRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (workspacesLoading) return;
@@ -369,25 +367,13 @@ export function DesktopShell({ user, targetSlug }: DesktopShellProps) {
 
     for (const w of active) {
       hydratedRef.current.add(w.id);
+      useWorkspaceStore.getState().setSandboxInfo(w.id, {
+        sandboxId: w.sandboxId as string,
+        status: "active",
+        workspaceId: w.id,
+        createdAt: w.createdAt ?? new Date().toISOString(),
+      } as SandboxInfo);
     }
-
-    Promise.all(
-      active.map(async (w) => {
-        try {
-          const res = await fetch(`/api/sandbox/${w.id}`);
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data.sandboxLost) {
-            useWorkspaceStore.getState().markSandboxLost(w.id);
-            mutateWorkspaces();
-            return;
-          }
-          if (data.sandbox) {
-            useWorkspaceStore.getState().setSandboxInfo(w.id, data.sandbox as SandboxInfo);
-          }
-        } catch {}
-      }),
-    );
   }, [workspaces, workspacesLoading, sandboxes]);
 
   if (workspacesLoading) {

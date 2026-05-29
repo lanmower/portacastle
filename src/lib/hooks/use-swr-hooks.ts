@@ -7,6 +7,7 @@ import type { SandboxInfo } from "@/types/sandbox";
 import type { DesktopEntry } from "@/types/desktop-entry";
 import { fetcher, SWR_KEYS } from "@/lib/swr";
 import { sandboxServiceFetcher } from "@/lib/hooks/use-sandbox-service-client";
+import { useWorkspaceStore } from "@/stores/workspace-store";
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -93,23 +94,24 @@ interface WorkspacesResponse {
 
 const EMPTY_WORKSPACES: Workspace[] = [];
 
+// Workspaces now live entirely in the localStorage-backed zustand store
+// (useWorkspaceStore). The remote /api/sandbox/list endpoint is gone, so this
+// hook reads the store instead of SWR-fetching. Signature is unchanged.
 export function useWorkspaces(enabled = true) {
-  const { data, error, isLoading, isValidating } =
-    useSWR<WorkspacesResponse>(
-      enabled ? SWR_KEYS.workspaces : null,
-      fetcher,
-      { revalidateOnFocus: true, dedupingInterval: 2000 },
-    );
+  const workspaces = useWorkspaceStore((s) =>
+    enabled ? s.workspaces : EMPTY_WORKSPACES,
+  );
   return {
-    workspaces: data?.workspaces ?? EMPTY_WORKSPACES,
-    isLoading,
-    isValidating,
-    error: error as Error | undefined,
+    workspaces: workspaces ?? EMPTY_WORKSPACES,
+    isLoading: false,
+    isValidating: false,
+    error: undefined as Error | undefined,
   };
 }
 
-export function mutateWorkspaces() {
-  return mutate(SWR_KEYS.workspaces);
+// No-op: there is no remote workspace list to revalidate. Callers `void` this.
+export async function mutateWorkspaces() {
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,24 +125,28 @@ interface WorkspaceResponse {
   canRecover?: boolean;
 }
 
+// Reads the single workspace + its in-page sandbox info from the local store.
+// In-page sandboxes never get "lost" remotely, so sandboxLost/canRecover are
+// always false. The remote /api/sandbox/${id} endpoint is gone.
 export function useWorkspace(id: string | null) {
-  const { data, error, isLoading } = useSWR<WorkspaceResponse>(
-    id ? SWR_KEYS.workspace(id) : null,
-    fetcher,
-    { revalidateOnFocus: true, dedupingInterval: 2000, refreshInterval: 60_000 },
+  const workspace = useWorkspaceStore((s) =>
+    id ? s.workspaces.find((w) => w.id === id) ?? null : null,
   );
+  const sandbox = useWorkspaceStore((s) => (id ? s.sandboxes[id] ?? null : null));
   return {
-    workspace: data?.workspace ?? null,
-    sandbox: data?.sandbox ?? null,
-    sandboxLost: data?.sandboxLost ?? false,
-    canRecover: data?.canRecover ?? false,
-    isLoading,
-    error: error as Error | undefined,
+    workspace,
+    sandbox,
+    sandboxLost: false,
+    canRecover: false,
+    isLoading: false,
+    error: undefined as Error | undefined,
   };
 }
 
-export function mutateWorkspace(id: string) {
-  return mutate(SWR_KEYS.workspace(id));
+// No-op: workspace state is local; nothing remote to revalidate.
+export async function mutateWorkspace(_id: string) {
+  void _id;
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,15 +157,15 @@ interface WindowsResponse {
   windows: unknown[];
 }
 
+// Window layout is no longer fetched from a remote endpoint; it is kept in the
+// window store (in-memory + localStorage). This hook returns empty state so the
+// shell falls back to its first-boot behavior without any network call.
 export function useWindowState(workspaceId: string | null) {
-  const { data, error, isLoading } = useSWRImmutable<WindowsResponse>(
-    workspaceId ? SWR_KEYS.windows(workspaceId) : null,
-    fetcher,
-  );
+  void workspaceId;
   return {
-    windows: data?.windows ?? null,
-    isLoading,
-    error: error as Error | undefined,
+    windows: null as unknown[] | null,
+    isLoading: false,
+    error: undefined as Error | undefined,
   };
 }
 

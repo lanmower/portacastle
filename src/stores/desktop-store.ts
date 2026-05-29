@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { DesktopEntry } from "@/types/desktop-entry";
-import { sandboxServiceFetcher } from "@/lib/hooks/use-sandbox-service-client";
 
 /**
  * Map of app name patterns (lowercase) to Dusk icon SVG filenames.
@@ -167,49 +166,12 @@ export const useDesktopStore = create<DesktopStore>((set) => ({
 
   setWallpaper: (url) => set({ wallpaper: url }),
 
-  fetchRemoteApps: async (apiDomain) => {
-    try {
-      const data = await sandboxServiceFetcher<{
-        entries?: DesktopEntry[];
-        desktopShortcuts?: DesktopEntry[];
-        apps?: DesktopEntry[];
-      }>(`https://${apiDomain}/desktop-entries`);
-
-      // Dedup: remote entries whose name matches a builtin are suppressed.
-      // Builtins always win (they have proper React components).
-      const builtinNames = new Set(
-        BUILTIN_APPS.map((a) => a.name.toLowerCase()),
-      );
-
-      const normalize = (entry: DesktopEntry) => {
-        const duskIcon = getDuskIcon(entry.name);
-        return {
-          ...entry,
-          component: entry.component ?? null,
-          categories: entry.categories ?? [],
-          icon: duskIcon
-            ? duskIcon
-            : entry.icon?.startsWith("/icon?")
-              ? `https://${apiDomain}${entry.icon}`
-              : entry.icon || "/icons/default.svg",
-        };
-      };
-
-      // The agent returns { desktopShortcuts, apps, entries }
-      const allRemote: DesktopEntry[] = (data.entries ?? [])
-        .map(normalize)
-        .filter((e: DesktopEntry) => !builtinNames.has(e.name.toLowerCase()));
-
-      const remoteDesktop: DesktopEntry[] = (data.desktopShortcuts ?? [])
-        .map((e: DesktopEntry) => ({ ...normalize(e), onDesktop: true }))
-        .filter((e: DesktopEntry) => !builtinNames.has(e.name.toLowerCase()));
-
-      set({
-        apps: [...BUILTIN_APPS, ...allRemote],
-        desktopIcons: [...BUILTIN_APPS, ...remoteDesktop],
-      });
-    } catch (err) {
-      console.error("Failed to fetch remote apps:", err);
-    }
+  // No-op. This used to fetch /desktop-entries from the remote services daemon
+  // to merge installed Linux apps into the launcher. That backend is gone;
+  // app-launching moves to in-guest exec via the in-page sandbox (handled in a
+  // separate task). Only the BUILTIN_APPS set is exposed for now. Signature is
+  // unchanged so existing callers keep compiling.
+  fetchRemoteApps: async (_apiDomain) => {
+    void _apiDomain;
   },
 }));
