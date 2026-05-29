@@ -5,6 +5,7 @@ import {
   useCallback,
   useMemo,
   useRef,
+  useEffect,
 } from "react";
 import { useActiveSandbox } from "@/stores/workspace-store";
 import { useWindowStore } from "@/stores/window-store";
@@ -66,7 +67,10 @@ function getOpenAction(name: string): "code" | "xpra-open" | "none" {
   return "code";
 }
 
-const HOME = "/home/vercel-sandbox";
+// Home dir in the in-page Alpine rootfs (busybox image ships /root as the
+// superuser home). The old /home/vercel-sandbox was a remote-Vercel-VM path
+// that does not exist here and ENOENT'd on open.
+const HOME = "/root";
 
 const SIDEBAR_ITEMS = [
   { id: "home", label: "Home", icon: Home, path: HOME },
@@ -122,6 +126,25 @@ export function FileManager() {
 
   const historyRef = useRef<string[]>([HOME]);
   const historyIdxRef = useRef(0);
+
+  // Ensure the home + XDG dirs exist in the fresh rootfs so the sidebar links
+  // (Home/Desktop/Documents/Downloads) never ENOENT. mkdir is idempotent.
+  const ensuredRef = useRef(false);
+  useEffect(() => {
+    if (!activeWorkspaceId || ensuredRef.current) return;
+    ensuredRef.current = true;
+    (async () => {
+      for (const item of SIDEBAR_ITEMS) {
+        if (item.path === "/") continue;
+        try {
+          await mkdir(item.path);
+        } catch {
+          // already exists or unwritable — best-effort
+        }
+      }
+      revalidate();
+    })();
+  }, [activeWorkspaceId, mkdir, revalidate]);
 
   const navigateTo = useCallback(
     (dir: string) => {
