@@ -145,6 +145,15 @@ export function DesktopShell({ user, targetSlug }: DesktopShellProps) {
   const createWorkspace = useWorkspaceStore((s) => s.createWorkspace);
   const sandboxes = useWorkspaceStore((s) => s.sandboxes);
 
+  // Dev-only live debug handle: expose the stores so behavior can be inspected
+  // in-browser (the live page is the debugger) instead of blind-restarting.
+  if (typeof window !== "undefined") {
+    (window as unknown as { __sc?: unknown }).__sc = {
+      workspace: useWorkspaceStore,
+      window: useWindowStore,
+    };
+  }
+
   useDocumentTitle();
   useUrlSync();
   useSyncSandboxTheme();

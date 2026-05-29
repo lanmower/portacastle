@@ -57,4 +57,5 @@ next-env.d.ts
 .gm/last-instruction-ts
 .gm/long-gap-retry-state
 .gm/next-step.md
+.claude/scheduled_tasks.lock
 # --- end gm managed ---

@@ -18,17 +18,21 @@ export async function GET() {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const [vercelAccount] = await db
-    .select({
-      provider: accounts.provider,
-      providerAccountId: accounts.providerAccountId,
-      scope: accounts.scope,
-      createdAt: accounts.createdAt,
-    })
-    .from(accounts)
-    .where(
-      and(eq(accounts.userId, session.id), eq(accounts.provider, "vercel")),
-    );
+  // Local-only mode (no Neon DB): no linked accounts to look up.
+  const dbConfigured = !!process.env.DATABASE_URL;
+  const [vercelAccount] = dbConfigured
+    ? await db
+        .select({
+          provider: accounts.provider,
+          providerAccountId: accounts.providerAccountId,
+          scope: accounts.scope,
+          createdAt: accounts.createdAt,
+        })
+        .from(accounts)
+        .where(
+          and(eq(accounts.userId, session.id), eq(accounts.provider, "vercel")),
+        )
+    : [undefined];
 
   const workspaceLimit = WORKSPACE_LIMITS[session.role] ?? WORKSPACE_LIMITS.user;
 

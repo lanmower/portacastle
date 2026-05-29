@@ -7,10 +7,23 @@ import crypto from "crypto";
 const SESSION_COOKIE = "sandcastle_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
+// Local-only mode: when no Neon DB is configured the app still runs fully
+// in-page (the whole point of the in-page sandbox migration). Guest sessions
+// become cookie-only with a synthesized local identity -- no DB insert/lookup.
+const DB_CONFIGURED = !!process.env.DATABASE_URL;
+// A guest token in DB-less mode is prefixed so getSession can reconstruct the
+// identity without a database round-trip.
+const LOCAL_GUEST_PREFIX = "local-guest:";
+
 function getSecret(): string {
+  // In production a real secret is required; in dev/local-only fall back to a
+  // fixed dev secret so the desktop boots with zero env configuration.
   const secret = process.env.SESSION_SECRET;
-  if (!secret) throw new Error("SESSION_SECRET is not set");
-  return secret;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("SESSION_SECRET is not set");
+  }
+  return "sandcastle-dev-insecure-secret";
 }
 
 function sign(payload: string): string {
@@ -51,6 +64,13 @@ export async function getSession() {
   const userId = verify(token);
   if (!userId) return null;
 
+  // Local-only guest: reconstruct identity straight from the signed token, no DB.
+  if (userId.startsWith(LOCAL_GUEST_PREFIX)) {
+    const id = userId.slice(LOCAL_GUEST_PREFIX.length);
+    return { id, email: null, name: "Guest", role: "guest" as const };
+  }
+
+  if (!DB_CONFIGURED) return null;
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   if (!user) return null;
 
@@ -58,6 +78,13 @@ export async function getSession() {
 }
 
 export async function createGuestSession() {
+  // DB-less local mode: mint a cookie-only guest with a synthesized id; no DB.
+  if (!DB_CONFIGURED) {
+    const id = crypto.randomUUID();
+    await createSession(LOCAL_GUEST_PREFIX + id);
+    return { id, email: null, name: "Guest", role: "guest" as const };
+  }
+
   const [guest] = await db
     .insert(users)
     .values({
