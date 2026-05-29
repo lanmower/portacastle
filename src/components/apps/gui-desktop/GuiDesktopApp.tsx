@@ -143,14 +143,19 @@ export function GuiDesktopApp() {
             // ELF), so a missing damage signal never freezes the display.
             const damage = damagePart === undefined ? 1 : Number(damagePart.trim());
             const view = await sb.displayPixels();
+            // The very first paint (lastGen<0) must always blit so the window
+            // appears even when the opening frame reports damage=0; after that,
+            // skip the copy on unchanged (damage=0) frames.
+            const firstPaint = lastGen < 0;
             if (view && view.pixels && view.width === GUEST_W && view.height === GUEST_H
                 && view.pixels.length === GUEST_W * GUEST_H * 4
                 && view.generation !== lastGen
-                && damage !== 0) {
+                && (damage !== 0 || firstPaint)) {
               // Copy into the persistent backbuffer (no per-frame allocation) and
-              // blit only when the generation advanced AND the guest reports the
-              // frame actually changed -- a damage=0 run skips the 1.9MB copy +
-              // canvas upload since the displayed frame is already current.
+              // blit only when the generation advanced AND (the guest reports the
+              // frame changed OR it's the first paint) -- a damage=0 run after the
+              // first paint skips the 1.9MB copy + canvas upload since the
+              // displayed frame is already current.
               frame.data.set(view.pixels);
               ctx.putImageData(frame, 0, 0);
               lastGen = view.generation;
