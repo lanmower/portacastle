@@ -22,7 +22,6 @@ import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placehold
 const GUEST_W = 800;
 const GUEST_H = 600;
 const ELF_URL = "/containers/xappdemo.elf";
-const FRAME_MS = 60; // host re-run cadence (each run is one guest frame)
 
 // Module-level guard: only ONE GUI frame pump per workspace may run, even
 // across React strict-mode double-mounts (which would otherwise start two
@@ -43,8 +42,16 @@ export function GuiDesktopApp() {
     canvas.width = GUEST_W;
     canvas.height = GUEST_H;
     const ctx = canvas.getContext("2d", { alpha: false })!;
+    // Persistent backbuffer: allocated ONCE and reused every frame. Allocating
+    // a fresh 1.9MB ImageData per frame churns the GC and is the single largest
+    // avoidable per-frame cost in the blit path.
+    const frame = ctx.createImageData(GUEST_W, GUEST_H);
     let running = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let raf = 0;
+    // Last framebuffer generation we blitted; the guest bumps fbView().generation
+    // on every fb register, so an unchanged generation means the pixels are
+    // identical and the putImageData can be skipped entirely.
+    let lastGen = -1;
 
     // Window drag state carried across frames (mirrors xappdemo argv contract).
     const win = { x: 220, y: 150, dragging: 0, grabx: 0, graby: 0 };
@@ -84,7 +91,15 @@ export function GuiDesktopApp() {
         sb.writeFiles([{ path: "/xappdemo", content: bytes, mode: 0o755 }]),
       );
       // expose for live debugging (window.__sc.gui)
-      const dbg = { lastOut: null as string | null, lastErr: null as string | null, win, pointer };
+      const dbg = {
+        lastOut: null as string | null,
+        lastErr: null as string | null,
+        win,
+        pointer,
+        frames: 0, // total ticks
+        blits: 0, // ticks that actually blitted (generation changed)
+        lastGenSeen: -1,
+      };
       (window as unknown as { __sc?: Record<string, unknown> }).__sc ??= {};
       (window as unknown as { __sc: Record<string, unknown> }).__sc.gui = dbg;
       setStatus("running");
@@ -92,9 +107,10 @@ export function GuiDesktopApp() {
       // Single-flight, self-pacing frame pump. tick() runs exactly ONE guest
       // frame and never re-enters (inFlight guard) -- the blink VM allows one
       // run at a time, so overlap is forbidden. After each frame it schedules
-      // the next only if more input arrived or a drag is active; otherwise it
-      // idles until requestTick() is called by an input event. This keeps the
-      // window live + interactive without a free-running timer racing the VM.
+      // the next via requestAnimationFrame only if more input arrived or a drag
+      // is active; otherwise it idles until requestTick() is called by an input
+      // event. This keeps the window live + interactive without a free-running
+      // timer racing the VM, and pauses entirely when the tab is backgrounded.
       let inFlight = false;
       let dirty = true; // first frame always renders
       function requestTick() { dirty = true; if (!inFlight && running) void tick(); }
@@ -115,17 +131,32 @@ export function GuiDesktopApp() {
             const r = await sb.runCommand("/xappdemo", argv);
             const stdoutStr = await r.stdout();
             dbg.lastOut = stdoutStr;
-            const out = stdoutStr.trim().split(/[\s|]+/).map(Number);
+            // Guest line: "x y drag gx gy | r g b ! damage". State is left of
+            // '!', the damage flag (1=visible change, 0=identical) is right of it.
+            const [statePart, damagePart] = stdoutStr.trim().split("!");
+            const out = statePart.split(/[\s|]+/).map(Number);
             if (out.length >= 5 && Number.isFinite(out[0])) {
               win.x = out[0]; win.y = out[1]; win.dragging = out[2]; win.grabx = out[3]; win.graby = out[4];
             }
+            // damage defaults to 1 (always blit) when the token is absent (older
+            // ELF), so a missing damage signal never freezes the display.
+            const damage = damagePart === undefined ? 1 : Number(damagePart.trim());
             const view = await sb.displayPixels();
             if (view && view.pixels && view.width === GUEST_W && view.height === GUEST_H
-                && view.pixels.length === GUEST_W * GUEST_H * 4) {
-              const px = new Uint8ClampedArray(GUEST_W * GUEST_H * 4);
-              px.set(view.pixels);
-              ctx.putImageData(new ImageData(px, GUEST_W, GUEST_H), 0, 0);
+                && view.pixels.length === GUEST_W * GUEST_H * 4
+                && view.generation !== lastGen
+                && damage !== 0) {
+              // Copy into the persistent backbuffer (no per-frame allocation) and
+              // blit only when the generation advanced AND the guest reports the
+              // frame actually changed -- a damage=0 run skips the 1.9MB copy +
+              // canvas upload since the displayed frame is already current.
+              frame.data.set(view.pixels);
+              ctx.putImageData(frame, 0, 0);
+              lastGen = view.generation;
+              dbg.blits++;
             }
+            if (view) dbg.lastGenSeen = view.generation;
+            dbg.frames++;
           });
         } catch (err) {
           dbg.lastErr =
@@ -134,8 +165,10 @@ export function GuiDesktopApp() {
               : (() => { try { return JSON.stringify(err); } catch { return String(err); } })();
         } finally {
           inFlight = false;
-          // keep animating while dragging (content block animates), else idle
-          if (running && (dirty || win.dragging)) timer = setTimeout(tick, FRAME_MS);
+          // keep animating while dragging (content block animates), else idle.
+          // requestAnimationFrame coalesces with the compositor and is paused
+          // automatically when the tab is backgrounded (no wasted VM runs).
+          if (running && (dirty || win.dragging)) raf = requestAnimationFrame(() => void tick());
         }
       }
       pointer.requestTick = requestTick;
@@ -144,7 +177,7 @@ export function GuiDesktopApp() {
 
     return () => {
       running = false;
-      if (timer) clearTimeout(timer);
+      if (raf) cancelAnimationFrame(raf);
       activePumps.delete(wsId);
       canvas.removeEventListener("mousemove", onMove);
       canvas.removeEventListener("mousedown", onDown);
