@@ -143,6 +143,17 @@ const BUILTIN_APPS: DesktopEntry[] = [
     comment: "Browse and install apps",
     onDesktop: true,
   },
+  {
+    id: "gui-desktop",
+    name: "GUI",
+    icon: "/icons/dusk/system_preferences.svg",
+    exec: null,
+    type: "builtin",
+    component: "gui-desktop",
+    categories: ["System"],
+    comment: "In-guest framebuffer GUI (xappdemo)",
+    onDesktop: true,
+  },
 ];
 
 interface DesktopStore {
