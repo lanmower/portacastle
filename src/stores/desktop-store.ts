@@ -154,6 +154,17 @@ const BUILTIN_APPS: DesktopEntry[] = [
     comment: "In-guest framebuffer GUI (xappdemo)",
     onDesktop: true,
   },
+  {
+    id: "x-apps",
+    name: "X Apps",
+    icon: "/icons/dusk/xeyes.svg",
+    exec: null,
+    type: "builtin",
+    component: "x-apps",
+    categories: ["System"],
+    comment: "Real Xvfb + X client (xdpyinfo) in-page",
+    onDesktop: true,
+  },
 ];
 
 interface DesktopStore {
