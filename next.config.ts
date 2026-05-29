@@ -10,7 +10,9 @@ const nextConfig: NextConfig = {
     ],
     dangerouslyAllowSVG: true,
   },
-  serverExternalPackages: ["@vercel/sandbox"],
+  // portabox/webix carry a Node host branch (node:fs) used only under Node;
+  // keep them external on the server so the bundler never inlines that path.
+  serverExternalPackages: ["portabox", "webix"],
   async headers() {
     return [
       {
