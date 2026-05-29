@@ -85,8 +85,9 @@ export function GuiDesktopApp() {
       if (activePumps.has(wsId)) { setStatus("running"); return; }
       activePumps.add(wsId);
       // Write the GUI ELF into the guest FS once (serialized against any other
-      // VM work via runExclusive); each frame execs /xappdemo.
-      const bytes = new Uint8Array(await (await fetch(ELF_URL)).arrayBuffer());
+      // VM work via runExclusive); each frame execs /xappdemo. no-store so a
+      // rebuilt ELF is picked up on reload instead of the stale HTTP-cached copy.
+      const bytes = new Uint8Array(await (await fetch(ELF_URL, { cache: "no-store" })).arrayBuffer());
       await runExclusive(wsId, (sb) =>
         sb.writeFiles([{ path: "/xappdemo", content: bytes, mode: 0o755 }]),
       );
