@@ -41,10 +41,19 @@ interface ClientSandboxStore {
   /** Dispose a workspace's sandbox and drop it from the store. */
   disposeSandbox: (workspaceId: string) => Promise<void>;
   getSandbox: (workspaceId: string) => Sandbox | undefined;
+  /**
+   * Serialize work against a workspace's single in-page VM. blink runs one ELF
+   * at a time (runElf throws "previous run not yet settled" on overlap), so the
+   * terminal, GUI frame loop, file ops, etc. must take turns. runExclusive
+   * chains callbacks per workspace so only one is ever in flight.
+   */
+  runExclusive: <T>(workspaceId: string, fn: (sandbox: Sandbox) => Promise<T>) => Promise<T>;
 }
 
 // In-flight boots, keyed by workspace id, so ensureSandbox is race-safe.
 const booting = new Map<string, Promise<Sandbox>>();
+// Per-workspace serialization chain so VM runs never overlap.
+const runChains = new Map<string, Promise<unknown>>();
 
 export const useClientSandboxStore = create<ClientSandboxStore>((set, get) => ({
   sandboxes: {},
@@ -53,6 +62,17 @@ export const useClientSandboxStore = create<ClientSandboxStore>((set, get) => ({
 
   getSandbox(workspaceId) {
     return get().sandboxes[workspaceId];
+  },
+
+  runExclusive(workspaceId, fn) {
+    const prev = runChains.get(workspaceId) ?? Promise.resolve();
+    const next = prev.catch(() => {}).then(async () => {
+      const sandbox = await get().ensureSandbox(workspaceId);
+      return fn(sandbox);
+    });
+    // keep the chain alive regardless of individual failures
+    runChains.set(workspaceId, next.catch(() => {}));
+    return next;
   },
 
   async ensureSandbox(workspaceId) {
