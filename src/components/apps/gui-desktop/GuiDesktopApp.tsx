@@ -103,6 +103,10 @@ export function GuiDesktopApp() {
       };
       (window as unknown as { __sc?: Record<string, unknown> }).__sc ??= {};
       (window as unknown as { __sc: Record<string, unknown> }).__sc.gui = dbg;
+      // Expose the sandbox store too: one Sandbox per workspace is held there
+      // for the page lifetime, so it's the handle that proves terminal + GUI +
+      // file ops all share one in-page VM/FS (window.__sc.clientSandbox).
+      (window as unknown as { __sc: Record<string, unknown> }).__sc.clientSandbox = useClientSandboxStore;
       setStatus("running");
 
       // Single-flight, self-pacing frame pump. tick() runs exactly ONE guest
