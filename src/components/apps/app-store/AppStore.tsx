@@ -91,6 +91,15 @@ export function AppStore() {
   const installedVersion: string | null = selectedPkg && installedNames.has(selectedPkg) ? "installed" : null;
   const repos: Repo[] = [];
 
+  // Dev handle: expose the launcher + client-sandbox store for live debugging
+  // and browser-witness (matches the window.__sc.gui/clientSandbox pattern).
+  useEffect(() => {
+    const w = window as unknown as { __sc?: Record<string, unknown> };
+    w.__sc = w.__sc || {};
+    w.__sc.launchXApp = launchXApp;
+    w.__sc.clientSandbox = useClientSandboxStore;
+  }, []);
+
   // Debounce search
   useEffect(() => {
     if (searchTimer.current) clearTimeout(searchTimer.current);

@@ -148,6 +148,14 @@ export async function launchXApp(
   argv: string[] = [],
 ): Promise<XLaunchResult> {
   const runExclusive = useClientSandboxStore.getState().runExclusive;
+  // Dev handle: expose the launcher + the client-sandbox store on window.__sc so
+  // the live page (and browser-witness) can drive a launch directly.
+  if (typeof window !== "undefined") {
+    const w = window as unknown as { __sc?: Record<string, unknown> };
+    w.__sc = w.__sc || {};
+    w.__sc.launchXApp = launchXApp;
+    w.__sc.clientSandbox = useClientSandboxStore;
+  }
   return runExclusive(workspaceId, async (sb) => {
     await ensureXStack(sb);
     const path = command.startsWith("/") ? command : `/usr/bin/${command}`;
