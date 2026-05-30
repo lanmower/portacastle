@@ -38,6 +38,16 @@ async function gunzip(gz: Uint8Array): Promise<Uint8Array> {
 
 interface TarEntry { path: string; data: Uint8Array; isDir: boolean }
 
+/** Minimal emscripten MEMFS surface used for the direct overlay write. */
+interface Fs {
+  mkdir(path: string): void;
+  unlink(path: string): void;
+  open(path: string, flags: string): number;
+  write(fd: number, buf: Uint8Array, offset: number, length: number, position: number): number;
+  close(fd: number): void;
+  chmod(path: string, mode: number): void;
+}
+
 /**
  * Minimal ustar/GNU/PAX reader. The overlay is symlink-free (SONAMEs are real
  * files), so we only emit dirs + regular files. We parse in JS rather than
@@ -103,7 +113,18 @@ export function XAppsApp() {
     setStatus("running");
     setErr(null);
     setOutput("");
+    // Live diagnostic: timestamped phase log readable from the browser via
+    // window.__xappdbg, plus the client-sandbox store handle. TEMP (worker-
+    // scheduling diagnosis of the in-browser runConcurrent hang).
+    const t0 = Date.now();
+    const dbg: string[] = [];
+    const mark = (s: string) => { dbg.push(`+${Date.now() - t0}ms ${s}`); };
+    (window as unknown as { __xappdbg: string[] }).__xappdbg = dbg;
+    (window as unknown as { __sc?: Record<string, unknown> }).__sc =
+      (window as unknown as { __sc?: Record<string, unknown> }).__sc || {};
+    (window as unknown as { __sc: Record<string, unknown> }).__sc.clientSandbox = useClientSandboxStore;
     try {
+      mark("fetch containers start");
       const [overlay, xvfb, xkm] = await Promise.all([
         fetchBytes(`${CONTAINERS}/x-client-overlay.tar.gz`),
         fetchBytes(`${CONTAINERS}/Xvfb-patched`),
@@ -113,7 +134,9 @@ export function XAppsApp() {
       // Gunzip + parse the overlay in the browser (busybox `tar -z` forks, and
       // its extractor aborts on PAX headers under blink), then write each entry
       // straight into the guest FS.
+      mark("containers fetched");
       const entries = readTar(await gunzip(overlay));
+      mark(`overlay parsed (${entries.length} entries)`);
 
       // Build ONE batch of files: the whole overlay (libs + binaries), the
       // patched X server, and the precompiled keymap at every plausible XKB
@@ -128,14 +151,49 @@ export function XAppsApp() {
           batch.push({ path: `${d}/${n}`, content: xkm });
         }
       }
+      // Create /tmp/.X11-unix by writing a placeholder into it via the batch
+      // (writeFiles auto-creates parent dirs). Avoids a serial runCommand("mkdir")
+      // which was wedging the per-workspace run chain before runConcurrent.
+      batch.push({ path: "/tmp/.X11-unix/.keep", content: new Uint8Array(0) });
 
+      mark(`batch built (${batch.length} files); entering runExclusive`);
       const result = await runExclusive(activeWorkspaceId, async (sb) => {
-        await sb.writeFiles(batch);
+        mark("runExclusive: writeFiles start");
+        // Write the overlay straight into the live guest MEMFS. The high-level
+        // sb.writeFiles did not land files in the in-browser path (they were
+        // missing from the FS runConcurrent reads -> ENOENT). The emscripten FS
+        // open/write/close is synchronous + coherent (this is exactly how the
+        // CI XO-smoke lays the overlay). Reach the host FS via the internal
+        // handle; fall back to sb.writeFiles if the shape ever changes.
+        const fsApi =
+          (sb as unknown as { _client?: { host?: { core?: { Module?: { FS?: Fs } } } } })
+            ?._client?.host?.core?.Module?.FS;
+        if (fsApi) {
+          const mkdirp = (p: string) => {
+            let cur = "";
+            for (const seg of p.split("/").filter(Boolean)) {
+              cur += "/" + seg;
+              try { fsApi.mkdir(cur); } catch { /* exists */ }
+            }
+          };
+          for (const f of batch) {
+            const dir = f.path.replace(/\/[^/]*$/, "");
+            if (dir) mkdirp(dir);
+            try { fsApi.unlink(f.path); } catch { /* new */ }
+            const fd = fsApi.open(f.path, "w+");
+            if (f.content.length) fsApi.write(fd, f.content, 0, f.content.length, 0);
+            fsApi.close(fd);
+            try { fsApi.chmod(f.path, 0o755); } catch { /* best effort */ }
+          }
+        } else {
+          await sb.writeFiles(batch);
+        }
+        mark(`writeFiles done (direct=${!!fsApi})`);
         // Make the binaries executable (a handful of runCommand calls, not 700).
         await sb.runCommand("chmod", ["0755", "/usr/bin/Xvfb", "/usr/bin/xdpyinfo", "/usr/bin/xsetroot"]).catch(() => {});
-        await sb.runCommand("mkdir", ["-p", "/tmp/.X11-unix"]).catch(() => {});
+        mark("chmod done; runConcurrent start");
         // Run the real X server + a real X client concurrently, in-page.
-        return sb.runConcurrent(
+        const rc = await sb.runConcurrent(
           {
             path: "/usr/bin/Xvfb",
             argv: [DISPLAY, "-screen", "0", "640x480x16", "-ac", "-noreset", "-nolock"],
@@ -143,6 +201,8 @@ export function XAppsApp() {
           { path: "/usr/bin/xdpyinfo", argv: ["-display", DISPLAY] },
           { clientDelayMs: 4000, overallTimeoutMs: 90000 },
         );
+        mark(`runConcurrent returned: client exit ${rc.client.exitCode} timedOut ${rc.timedOut}`);
+        return rc;
       });
 
       const out = result.client.stdout || "";
