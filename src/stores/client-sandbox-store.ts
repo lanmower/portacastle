@@ -27,10 +27,21 @@ export type SandboxStatus =
   | "ready"
   | "error";
 
+/** Cold-boot stage label per workspace, for a legible boot indicator. */
+export type BootStage = "runtime" | "rootfs" | "mount" | "ready";
+export const BOOT_STAGE_LABEL: Record<BootStage, string> = {
+  runtime: "Fetching runtime…",
+  rootfs: "Fetching filesystem…",
+  mount: "Mounting filesystem…",
+  ready: "Ready",
+};
+
 interface ClientSandboxStore {
   /** The live portabox Sandbox per workspace id. */
   sandboxes: Record<string, Sandbox>;
   status: Record<string, SandboxStatus>;
+  /** Cold-boot stage per workspace (drives the boot-progress indicator). */
+  bootStage: Record<string, BootStage | undefined>;
   error: Record<string, string | null>;
 
   /**
@@ -54,10 +65,13 @@ interface ClientSandboxStore {
 const booting = new Map<string, Promise<Sandbox>>();
 // Per-workspace serialization chain so VM runs never overlap.
 const runChains = new Map<string, Promise<unknown>>();
+// Workspaces whose IDBFS persist-flush listeners are already wired (once each).
+const persistFlushWired = new Set<string>();
 
 export const useClientSandboxStore = create<ClientSandboxStore>((set, get) => ({
   sandboxes: {},
   status: {},
+  bootStage: {},
   error: {},
 
   getSandbox(workspaceId) {
@@ -95,7 +109,28 @@ export const useClientSandboxStore = create<ClientSandboxStore>((set, get) => ({
         wasmUrl: `${CONTAINERS}/blinkenlib.wasm`,
         glueUrl: `${CONTAINERS}/blinkenlib.js`,
         rootfsUrl: `${CONTAINERS}/alpine-minirootfs-x86_64.tar.gz`,
+        // Surface cold-boot stages so the boot UI is legible (not a flat spinner).
+        onProgress: (stage: BootStage) =>
+          set((s) => ({ bootStage: { ...s.bootStage, [workspaceId]: stage } })),
       });
+      // Mount an IDBFS-backed /persist dir + load it from IndexedDB, so files
+      // written under /persist survive a page reload. Best-effort: a build
+      // without IDBFS, or a privacy mode without IndexedDB, simply skips it.
+      try {
+        await sandbox.persistDir("/persist");
+        if (!persistFlushWired.has(workspaceId)) {
+          persistFlushWired.add(workspaceId);
+          const flush = () => { void sandbox.syncPersist().catch(() => {}); };
+          // Flush on tab hide/close + periodically, so writes are durable.
+          if (typeof window !== "undefined") {
+            window.addEventListener("beforeunload", flush);
+            window.addEventListener("pagehide", flush);
+            setInterval(flush, 15000);
+          }
+        }
+      } catch {
+        /* IDBFS unavailable; non-persistent session */
+      }
       return sandbox;
     })();
 

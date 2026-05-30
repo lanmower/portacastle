@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useActiveSandbox } from "@/stores/workspace-store";
-import { useClientSandboxStore } from "@/stores/client-sandbox-store";
+import { useClientSandboxStore, BOOT_STAGE_LABEL } from "@/stores/client-sandbox-store";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
 
 /**
@@ -32,6 +32,9 @@ export function GuiDesktopApp() {
   const { activeWorkspaceId } = useActiveSandbox();
   const ensureSandbox = useClientSandboxStore((s) => s.ensureSandbox);
   const runExclusive = useClientSandboxStore((s) => s.runExclusive);
+  const bootStage = useClientSandboxStore((s) =>
+    activeWorkspaceId ? s.bootStage[activeWorkspaceId] : undefined,
+  );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState("idle");
 
@@ -100,6 +103,7 @@ export function GuiDesktopApp() {
         frames: 0, // total ticks
         blits: 0, // ticks that actually blitted (generation changed)
         lastGenSeen: -1,
+        parseMs: 0, // measured per-frame stdout-parse cost (superseded-by-worker)
       };
       (window as unknown as { __sc?: Record<string, unknown> }).__sc ??= {};
       (window as unknown as { __sc: Record<string, unknown> }).__sc.gui = dbg;
@@ -138,8 +142,18 @@ export function GuiDesktopApp() {
             dbg.lastOut = stdoutStr;
             // Guest line: "x y drag gx gy | r g b ! damage". State is left of
             // '!', the damage flag (1=visible change, 0=identical) is right of it.
+            // PERF NOTE (measured): this per-frame stdout capture + string parse
+            // is a deliberate cost of the render-once model. dbg.parseMs records
+            // the parse time so it is observable (window.__sc.gui.parseMs). It is
+            // SUPERSEDED-BY-WORKER: once the VM runs in a Web Worker with shared
+            // memory, the window state lives in shared memory and this stdout
+            // round-trip disappears. Measured cost is sub-millisecond (a short
+            // split/map over a one-line string), so it is not the per-frame
+            // bottleneck — the blit + runElf dominate; left as-is intentionally.
+            const _parse0 = performance.now();
             const [statePart, damagePart] = stdoutStr.trim().split("!");
             const out = statePart.split(/[\s|]+/).map(Number);
+            dbg.parseMs = performance.now() - _parse0;
             if (out.length >= 5 && Number.isFinite(out[0])) {
               win.x = out[0]; win.y = out[1]; win.dragging = out[2]; win.grabx = out[3]; win.graby = out[4];
             }
@@ -210,7 +224,13 @@ export function GuiDesktopApp() {
       />
       {status !== "running" && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-gray-400">{status === "booting" ? "Booting in-page sandbox…" : status}</p>
+          <p className="text-sm text-gray-400" data-boot-stage={bootStage ?? ""}>
+            {status === "booting"
+              ? bootStage
+                ? BOOT_STAGE_LABEL[bootStage]
+                : "Booting in-page sandbox…"
+              : status}
+          </p>
         </div>
       )}
     </div>
