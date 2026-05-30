@@ -1,13 +1,9 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import useSWR from "swr";
 import { useActiveSandbox } from "@/stores/workspace-store";
-import { useXpraStore } from "@/stores/xpra-store";
-import {
-  useSandboxServiceClient,
-  sandboxServiceFetcher,
-} from "@/lib/hooks/use-sandbox-service-client";
+import { useClientSandboxStore } from "@/stores/client-sandbox-store";
+import { launchXApp } from "@/lib/x-launch";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
 import {
   Toolbar,
@@ -20,7 +16,6 @@ import {
 } from "@/components/os-primitives";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Store,
@@ -31,7 +26,6 @@ import {
   CheckCircle,
   Play,
   Globe,
-  Plus,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -72,9 +66,8 @@ const PAGE_SIZE = 50;
 // ---------------------------------------------------------------------------
 
 export function AppStore() {
-  const { sandbox } = useActiveSandbox();
-  const launchApp = useXpraStore((s) => s.launchApp);
-  const { servicesDomain, serviceUrl, post } = useSandboxServiceClient();
+  const { activeWorkspaceId, sandbox } = useActiveSandbox();
+  const runExclusive = useClientSandboxStore((s) => s.runExclusive);
 
   const [view, setView] = useState<ViewMode>("gui-apps");
   const [search, setSearch] = useState("");
@@ -83,9 +76,20 @@ export function AppStore() {
   const [offset, setOffset] = useState(0);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [actionLog, setActionLog] = useState("");
-  const [showRepoForm, setShowRepoForm] = useState(false);
-  const [repoUrl, setRepoUrl] = useState("");
   const searchTimer = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const [packages, setPackages] = useState<Package[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchError, setSearchError] = useState<Error | null>(null);
+  const [installedNames, setInstalledNames] = useState<Set<string>>(new Set());
+  const [pkgInfo, setPkgInfo] = useState<PackageInfo | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  const versions: PackageVersion[] = [];
+  const installedVersion: string | null = selectedPkg && installedNames.has(selectedPkg) ? "installed" : null;
+  const repos: Repo[] = [];
 
   // Debounce search
   useEffect(() => {
@@ -97,126 +101,107 @@ export function AppStore() {
   // Reset offset when view/search changes
   useEffect(() => { setOffset(0); }, [view, debouncedSearch]);
 
-  // ---- SWR queries (cached across tab switches) ----
+  // ---- In-page apk catalog query (replaces the removed remote /packages service) ----
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    let cancelled = false;
+    const q = view === "search" ? debouncedSearch : "";
+    if (view === "search" && !debouncedSearch) { setPackages([]); setTotal(0); return; }
+    setIsLoading(true);
+    setSearchError(null);
+    void runExclusive(activeWorkspaceId, async (sb) => {
+      if (view === "installed") {
+        const list = await sb.pkgInstalled();
+        const filtered = q ? list.filter((p) => p.name.includes(q)) : list;
+        return { packages: filtered.map((p) => ({ name: p.name, summary: "", version: p.version })), total: filtered.length };
+      }
+      return sb.pkgSearch(q, { gui: view === "gui-apps", offset, limit: PAGE_SIZE });
+    })
+      .then((res) => { if (!cancelled) { setPackages(res.packages); setTotal(res.total); } })
+      .catch((e) => { if (!cancelled) setSearchError(e instanceof Error ? e : new Error(String(e))); })
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeWorkspaceId, view, debouncedSearch, offset, runExclusive, reloadToken]);
 
-  const searchPath = view === "gui-apps"
-    ? `/packages/search?gui=1&offset=${offset}&limit=${PAGE_SIZE}`
-    : view === "installed"
-      ? `/packages/installed?offset=${offset}&limit=${PAGE_SIZE}${debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : ""}`
-      : debouncedSearch
-        ? `/packages/search?q=${encodeURIComponent(debouncedSearch)}&offset=${offset}&limit=${PAGE_SIZE}`
-        : null;
+  // Installed set (for the check marks), refreshed on reloadToken.
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+    let cancelled = false;
+    void runExclusive(activeWorkspaceId, (sb) => sb.pkgInstalled())
+      .then((list) => { if (!cancelled) setInstalledNames(new Set(list.map((p) => p.name))); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [activeWorkspaceId, runExclusive, reloadToken]);
 
-  const { data: searchData, error: searchError, isLoading, mutate: mutatePackages } = useSWR<{ packages: Package[]; total: number }>(
-    searchPath ? serviceUrl(searchPath) : null,
-    sandboxServiceFetcher,
-    { revalidateOnFocus: false, dedupingInterval: 10_000 },
-  );
+  // Package detail info.
+  useEffect(() => {
+    if (!activeWorkspaceId || !selectedPkg) { setPkgInfo(null); return; }
+    let cancelled = false;
+    setInfoLoading(true);
+    void runExclusive(activeWorkspaceId, (sb) => sb.pkgInfo(selectedPkg))
+      .then((info) => {
+        if (cancelled || !info) return;
+        setPkgInfo({ version: info.version, description: info.summary, repository: info.repo } as PackageInfo);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setInfoLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeWorkspaceId, selectedPkg, runExclusive]);
 
-  const packages: Package[] = searchData?.packages ?? [];
-  const total: number = searchData?.total ?? 0;
-
-  const { data: installedData, mutate: mutateInstalled } = useSWR<{ packages: Package[] }>(
-    serviceUrl("/packages/installed?limit=500"),
-    sandboxServiceFetcher,
-    { revalidateOnFocus: false, dedupingInterval: 30_000 },
-  );
-  const installedNames = new Set<string>(
-    (installedData?.packages ?? []).map((p) => p.name),
-  );
-
-  const { data: infoData, isLoading: infoLoading } = useSWR<{ info: PackageInfo | null }>(
-    selectedPkg ? serviceUrl(`/packages/info?name=${encodeURIComponent(selectedPkg)}`) : null,
-    sandboxServiceFetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60_000 },
-  );
-  const pkgInfo: PackageInfo | null = infoData?.info ?? null;
-
-  const { data: versionsData } = useSWR<{ versions: PackageVersion[]; installedVersion: string | null }>(
-    selectedPkg ? serviceUrl(`/packages/versions?name=${encodeURIComponent(selectedPkg)}`) : null,
-    sandboxServiceFetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60_000 },
-  );
-  const versions: PackageVersion[] = versionsData?.versions ?? [];
-  const installedVersion: string | null = versionsData?.installedVersion ?? null;
-
-  const { data: reposData, mutate: mutateRepos } = useSWR<{ repos: Repo[] }>(
-    serviceUrl("/packages/repos"),
-    sandboxServiceFetcher,
-    { revalidateOnFocus: false, dedupingInterval: 60_000 },
-  );
-  const repos: Repo[] = reposData?.repos ?? [];
+  const refreshAll = useCallback(() => setReloadToken((t) => t + 1), []);
 
   // ---- Actions ----
 
   const installPkg = useCallback(
-    async (name: string, version?: string) => {
-      if (!servicesDomain) return;
+    async (name: string) => {
+      if (!activeWorkspaceId) return;
       setActionStatus("installing");
       setActionLog("");
       try {
-        const data = await post<{ ok: boolean; stdout?: string; stderr?: string }>("/packages/install", { name, version });
-        setActionLog((data.stdout || "") + (data.stderr || ""));
-        if (data.ok) {
-          setActionStatus(null);
-          void mutateInstalled();
-          void mutatePackages();
-        } else {
-          setActionStatus("error");
-        }
-      } catch {
+        await runExclusive(activeWorkspaceId, (sb) => sb.pkgInstall(name));
+        setActionLog(`Installed ${name}`);
+        setActionStatus(null);
+        refreshAll();
+      } catch (e) {
+        setActionLog(e instanceof Error ? e.message : String(e));
         setActionStatus("error");
       }
     },
-    [servicesDomain, post, mutateInstalled, mutatePackages],
+    [activeWorkspaceId, runExclusive, refreshAll],
   );
 
   const removePkg = useCallback(
     async (name: string) => {
-      if (!servicesDomain) return;
+      if (!activeWorkspaceId) return;
       setActionStatus("removing");
       setActionLog("");
       try {
-        const data = await post<{ ok: boolean; stdout?: string; stderr?: string }>("/packages/remove", { name });
-        setActionLog((data.stdout || "") + (data.stderr || ""));
-        if (data.ok) {
-          setActionStatus(null);
-          void mutateInstalled();
-          void mutatePackages();
-        } else {
-          setActionStatus("error");
-        }
-      } catch {
+        await runExclusive(activeWorkspaceId, (sb) => sb.pkgRemove(name));
+        setActionLog(`Removed ${name}`);
+        setActionStatus(null);
+        refreshAll();
+      } catch (e) {
+        setActionLog(e instanceof Error ? e.message : String(e));
         setActionStatus("error");
       }
     },
-    [servicesDomain, post, mutateInstalled, mutatePackages],
+    [activeWorkspaceId, runExclusive, refreshAll],
   );
 
-  const addRepo = useCallback(
-    async () => {
-      if (!repoUrl.trim()) return;
-      setActionStatus("adding-repo");
-      setActionLog("");
-      try {
-        await post("/packages/repos", { repoUrl: repoUrl.trim() });
-        setRepoUrl("");
-        setShowRepoForm(false);
-        void mutateRepos();
-        setActionStatus(null);
-      } catch (err) {
-        setActionLog(err instanceof Error ? err.message : "Failed to add repo");
-        setActionStatus("error");
-      }
+  // Launch an installed app as an X client against the in-page Xvfb.
+  const launchApp = useCallback(
+    (name: string) => {
+      if (!activeWorkspaceId) return;
+      void launchXApp(activeWorkspaceId, name).catch(() => {});
     },
-    [post, repoUrl, mutateRepos],
+    [activeWorkspaceId],
   );
 
   // ---- Derived state ----
 
   const selectedPkgData = selectedPkg ? packages.find((p) => p.name === selectedPkg) : null;
   const isInstalled = selectedPkg ? installedNames.has(selectedPkg) : false;
-  const busy = actionStatus === "installing" || actionStatus === "removing" || actionStatus === "adding-repo";
+  const busy = actionStatus === "installing" || actionStatus === "removing";
   const hasNext = offset + PAGE_SIZE < total;
   const hasPrev = offset > 0;
   const pageNum = Math.floor(offset / PAGE_SIZE) + 1;
@@ -241,7 +226,7 @@ export function AppStore() {
         <Toolbar.Separator />
         <Toolbar.Button
           tooltip="Refresh"
-          onClick={() => { void mutatePackages(); void mutateInstalled(); }}
+          onClick={refreshAll}
           disabled={isLoading}
           aria-label="Refresh"
         >
@@ -266,23 +251,7 @@ export function AppStore() {
                     <span className="truncate">{r.id}</span>
                   </div>
                 ))}
-                <SidebarNav.Item onClick={() => setShowRepoForm(!showRepoForm)} icon={<Plus />}>
-                  Add repo
-                </SidebarNav.Item>
-                {showRepoForm && (
-                  <div className="mx-1 mt-1 flex flex-col gap-1 rounded-md bg-gray-alpha-100 p-2">
-                    <Input
-                      size="small"
-                      value={repoUrl}
-                      onChange={(e) => setRepoUrl(e.target.value)}
-                      placeholder="https://..."
-                      aria-label="Repository URL"
-                    />
-                    <Button size="small" onClick={addRepo} disabled={busy || !repoUrl.trim()} loading={actionStatus === "adding-repo"}>
-                      Add
-                    </Button>
-                  </div>
-                )}
+                <div className="mx-1 px-2 py-0.5 text-copy-13 text-gray-700">Alpine main + community</div>
               </SidebarNav.Group>
             </SidebarNav>
           </SplitPane.Panel>
