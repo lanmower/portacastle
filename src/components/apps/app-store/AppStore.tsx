@@ -121,8 +121,17 @@ export function AppStore() {
     void runExclusive(activeWorkspaceId, async (sb) => {
       if (view === "installed") {
         const list = await sb.pkgInstalled();
-        const filtered = q ? list.filter((p) => p.name.includes(q)) : list;
-        return { packages: filtered.map((p) => ({ name: p.name, summary: "", version: p.version })), total: filtered.length };
+        const filtered = q
+          ? list.filter((p: { name: string; version: string }) => p.name.includes(q))
+          : list;
+        return {
+          packages: filtered.map((p: { name: string; version: string }) => ({
+            name: p.name,
+            summary: "",
+            version: p.version,
+          })),
+          total: filtered.length,
+        };
       }
       return sb.pkgSearch(q, { gui: view === "gui-apps", offset, limit: PAGE_SIZE });
     })
