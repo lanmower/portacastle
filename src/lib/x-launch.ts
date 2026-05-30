@@ -32,7 +32,9 @@ interface Fs {
 interface TarEntry { path: string; data: Uint8Array; isDir: boolean }
 
 async function fetchBytes(url: string): Promise<Uint8Array> {
-  const res = await fetch(url, { cache: "force-cache" });
+  // no-store so a rebuilt Xvfb-patched / overlay / keymap is picked up on reload
+  // instead of a stale HTTP-cached copy (matches the GUI/X-apps ELF fetches).
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`fetch ${url}: ${res.status}`);
   return new Uint8Array(await res.arrayBuffer());
 }
@@ -168,21 +170,34 @@ export async function launchXApp(
       const apkSb = sb as { pkgInstall?: (n: string) => Promise<unknown> };
       if (apkSb.pkgInstall) { try { await apkSb.pkgInstall(command); } catch { /* fall through; run may still fail */ } }
     }
-    const r = await (sb as {
-      runConcurrent: (
-        server: { path: string; argv?: string[] },
-        client: { path: string; argv?: string[]; progname?: string },
-        opts?: { clientDelayMs?: number; overallTimeoutMs?: number },
-      ) => Promise<{ timedOut: boolean; client: { exitCode: number | string; stdout: string; stderr: string } }>;
-    }).runConcurrent(
-      { path: "/usr/bin/Xvfb", argv: [DISPLAY, "-screen", "0", "800x600x16", "-ac", "-noreset", "-nolock"] },
-      { path, progname: path, argv: ["-display", DISPLAY, ...argv] },
-      { clientDelayMs: 4000, overallTimeoutMs: 90000 },
-    );
+    const xsb = sb as {
+      xRunning: () => Promise<boolean>;
+      startXServer: (server: { path: string; argv?: string[] }) => Promise<number>;
+      launchXClient: (
+        client: { path: string; argv?: string[]; progname?: string; timeoutMs?: number },
+      ) => Promise<{ timedOut: boolean; exitCode: number | string; stdout: string; stderr: string }>;
+    };
+    // Persistent model: start the Xvfb server ONCE per sandbox (it keeps serving
+    // and publishing its framebuffer via 0x5fb), then launch each app as a
+    // client against it. The XWindowCanvas blits the live framebuffer meanwhile.
+    if (!(await xsb.xRunning())) {
+      await xsb.startXServer({
+        path: "/usr/bin/Xvfb",
+        // depth 16 (RGB565): the proven depth under blink (x24 did not register a
+        // framebuffer). The host fbView() converts RGB565 -> RGBA for the canvas.
+        argv: [DISPLAY, "-screen", "0", "800x600x16", "-ac", "-noreset", "-nolock"],
+      });
+      // Give the server a moment to reach its dispatch loop before the first
+      // client connects (mirrors the proven runConcurrent clientDelay).
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+    const r = await xsb.launchXClient({
+      path, progname: path, argv: ["-display", DISPLAY, ...argv], timeoutMs: 90000,
+    });
     return {
-      exitCode: r.client.exitCode,
-      stdout: r.client.stdout || "",
-      stderr: r.client.stderr || "",
+      exitCode: r.exitCode,
+      stdout: r.stdout || "",
+      stderr: r.stderr || "",
       timedOut: r.timedOut,
     };
   });

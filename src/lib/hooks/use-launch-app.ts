@@ -40,9 +40,18 @@ export function useLaunchApp() {
           APP_WINDOW_DEFAULTS[appId] ?? DEFAULT_WINDOW_SIZE;
         openWindow({ title: entry.name, appId, width, height });
       } else if (activeWorkspaceId) {
-        // X11 app: run it as an X client against the in-page Xvfb. The exec
-        // command (or app id) is the binary name.
-        void launchXApp(activeWorkspaceId, entry.exec || appId).catch(() => {});
+        // X11 app: open a live X window (XWindowCanvas blits the persistent
+        // Xvfb framebuffer) AND launch the app as a client against the in-page
+        // Xvfb. The exec command (or app id) is the binary name. The window's
+        // appId carries the command so WindowRenderer mounts the X canvas.
+        const command = entry.exec || appId;
+        openWindow({
+          title: entry.name,
+          appId: `x11:${command}`,
+          width: DEFAULT_WINDOW_SIZE.width,
+          height: DEFAULT_WINDOW_SIZE.height,
+        });
+        void launchXApp(activeWorkspaceId, command).catch(() => {});
       }
     },
     [openWindow, activeWorkspaceId],

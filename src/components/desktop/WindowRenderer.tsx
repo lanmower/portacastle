@@ -6,6 +6,7 @@ import { useIsMobile } from "@/lib/hooks/use-is-mobile";
 import { Window } from "@/components/window/Window";
 import { MobileWindowStack } from "@/components/window/MobileWindowStack";
 import { XpraWindowCanvas } from "@/components/apps/xpra-window/XpraWindow";
+import { XWindowCanvas } from "@/components/apps/x-window/XWindowCanvas";
 import { APP_COMPONENTS } from "@/components/apps/app-registry";
 
 function XpraWindowWrapper({ wid }: { wid: number }) {
@@ -30,7 +31,17 @@ export function WindowRenderer() {
   return (
     <>
       {windows.map((win) => {
-        // Xpra X11 windows use appId format "xpra:<wid>"
+        // Live in-page X11 windows use appId format "x11:<command>" — blit the
+        // persistent Xvfb framebuffer to a canvas (no remote VM, no xpra).
+        if (win.appId.startsWith("x11:") && activeWorkspaceId) {
+          return (
+            <Window key={win.id} window={win}>
+              <XWindowCanvas workspaceId={activeWorkspaceId} />
+            </Window>
+          );
+        }
+
+        // Xpra X11 windows use appId format "xpra:<wid>" (legacy remote path)
         if (win.appId.startsWith("xpra:")) {
           const wid = parseInt(win.appId.split(":")[1], 10);
           return (
