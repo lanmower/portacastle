@@ -29,6 +29,67 @@ async function fetchBytes(url: string): Promise<Uint8Array> {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+/** Gunzip in-browser so we never rely on the guest forking a gzip child. */
+async function gunzip(gz: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream("gzip");
+  const stream = new Response(new Blob([gz as BlobPart]).stream().pipeThrough(ds));
+  return new Uint8Array(await stream.arrayBuffer());
+}
+
+interface TarEntry { path: string; data: Uint8Array; isDir: boolean }
+
+/**
+ * Minimal ustar/GNU/PAX reader. The overlay is symlink-free (SONAMEs are real
+ * files), so we only emit dirs + regular files. We parse in JS rather than
+ * shelling out to busybox tar because busybox `tar -z` forks (unsupported under
+ * blink) and its extractor aborts on PAX/GNU header records.
+ */
+function readTar(buf: Uint8Array): TarEntry[] {
+  const td = new TextDecoder();
+  const str = (o: number, l: number) => td.decode(buf.subarray(o, o + l)).replace(/\0.*$/, "");
+  const size = (o: number) => {
+    // Octal, or GNU base-256 when the high bit of the first byte is set.
+    if (buf[o] & 0x80) {
+      let n = 0;
+      for (let i = o + 1; i < o + 12; i++) n = n * 256 + buf[i];
+      return n;
+    }
+    return parseInt(str(o, 12).trim() || "0", 8);
+  };
+  const out: TarEntry[] = [];
+  let off = 0;
+  let pending: string | null = null;
+  let zeros = 0;
+  while (off + 512 <= buf.length) {
+    let allZero = true;
+    for (let i = 0; i < 512; i++) if (buf[off + i] !== 0) { allZero = false; break; }
+    if (allZero) { if (++zeros >= 2) break; off += 512; continue; }
+    zeros = 0;
+    let name = str(off, 100);
+    const sz = size(off + 124);
+    const type = String.fromCharCode(buf[off + 156] || 48);
+    const body = buf.subarray(off + 512, off + 512 + sz);
+    const adv = 512 + Math.ceil(sz / 512) * 512;
+    if (type === "L") { pending = td.decode(body).replace(/\0.*$/, ""); off += adv; continue; }
+    if (type === "x" || type === "g") {
+      const m = td.decode(body).match(/\d+ path=([^\n]+)\n/);
+      if (m) pending = m[1];
+      off += adv;
+      continue;
+    }
+    const prefix = str(off + 345, 155);
+    if (pending) { name = pending; pending = null; }
+    else if (prefix) name = prefix + "/" + name;
+    off += adv;
+    if (!name) continue;
+    const path = "/" + name.replace(/^\.?\/*/, "").replace(/\/$/, "");
+    if (type === "5") out.push({ path, data: new Uint8Array(0), isDir: true });
+    else if (type === "0" || type === "\0" || type === "" || type === "7")
+      out.push({ path, data: new Uint8Array(body), isDir: false });
+  }
+  return out;
+}
+
 export function XAppsApp() {
   const { activeWorkspaceId } = useActiveSandbox();
   const runExclusive = useClientSandboxStore((s) => s.runExclusive);
@@ -49,23 +110,31 @@ export function XAppsApp() {
         fetchBytes(`${CONTAINERS}/server.xkm`),
       ]);
 
+      // Gunzip + parse the overlay in the browser (busybox `tar -z` forks, and
+      // its extractor aborts on PAX headers under blink), then write each entry
+      // straight into the guest FS.
+      const entries = readTar(await gunzip(overlay));
+
+      // Build ONE batch of files: the whole overlay (libs + binaries), the
+      // patched X server, and the precompiled keymap at every plausible XKB
+      // output dir. writeFiles streams them into the guest FS in a single VM
+      // interaction (auto-creating dirs) — per-file runCommand("chmod"/mkdir)
+      // over ~700 files would spawn the VM hundreds of times and hang the page.
+      const batch: { path: string; content: Uint8Array }[] = [];
+      for (const e of entries) if (!e.isDir) batch.push({ path: e.path, content: e.data });
+      batch.push({ path: "/usr/bin/Xvfb", content: xvfb });
+      for (const d of ["/tmp", "/var/lib/xkb", "/usr/share/X11/xkb/compiled", ""]) {
+        for (const n of ["server-99.xkm", "server-0.xkm"]) {
+          batch.push({ path: `${d}/${n}`, content: xkm });
+        }
+      }
+
       const result = await runExclusive(activeWorkspaceId, async (sb) => {
-        // 1) Lay the X-client + its shared-library closure into the guest FS.
-        await sb.fs.writeFile("/x-client-overlay.tar.gz", overlay);
-        const untar = await sb.runCommand("tar", ["-xzf", "/x-client-overlay.tar.gz", "-C", "/"]);
-        if (untar.exitCode !== 0) {
-          throw new Error(`overlay extract failed: ${untar.stderr || untar.stdout}`);
-        }
-        // 2) Place the patched X server + precompiled keymap where dix reads them.
-        await sb.fs.writeFile("/usr/bin/Xvfb", xvfb);
-        await sb.runCommand("chmod", ["0755", "/usr/bin/Xvfb"]);
-        await sb.runCommand("mkdir", ["-p", "/tmp/.X11-unix"]);
-        // The patched RunXkbComp returns the keymap NAME; dix LoadXKM-reads
-        // <outdir>/server-<n>.xkm. Place it under both common spellings.
-        for (const p of [`/tmp/server-99.xkm`, `/tmp/server-0.xkm`]) {
-          await sb.fs.writeFile(p, xkm);
-        }
-        // 3) Run the real X server + a real X client concurrently, in-page.
+        await sb.writeFiles(batch);
+        // Make the binaries executable (a handful of runCommand calls, not 700).
+        await sb.runCommand("chmod", ["0755", "/usr/bin/Xvfb", "/usr/bin/xdpyinfo", "/usr/bin/xsetroot"]).catch(() => {});
+        await sb.runCommand("mkdir", ["-p", "/tmp/.X11-unix"]).catch(() => {});
+        // Run the real X server + a real X client concurrently, in-page.
         return sb.runConcurrent(
           {
             path: "/usr/bin/Xvfb",
