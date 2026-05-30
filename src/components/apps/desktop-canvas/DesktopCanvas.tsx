@@ -39,9 +39,10 @@ export function DesktopCanvas() {
       try {
         const sandbox = await ensureSandbox(activeWorkspaceId);
         if (disposed) return;
-        display = await sandbox.attachDisplay(canvas, { fpsCap: 60 });
+        const d = await sandbox.attachDisplay(canvas, { fpsCap: 60 });
+        display = d;
         if (disposed) {
-          display.stop();
+          d.stop();
           return;
         }
         setStatus("attached");
