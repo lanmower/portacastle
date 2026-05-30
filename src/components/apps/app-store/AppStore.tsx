@@ -197,11 +197,26 @@ export function AppStore() {
     [activeWorkspaceId, runExclusive, refreshAll],
   );
 
-  // Launch an installed app as an X client against the in-page Xvfb.
+  // Launch an installed app as an X client against the in-page Xvfb. Surface
+  // the outcome (connected / unable to open display / crash) in the action log
+  // instead of swallowing it, so a failed launch is legible.
   const launchApp = useCallback(
     (name: string) => {
       if (!activeWorkspaceId) return;
-      void launchXApp(activeWorkspaceId, name).catch(() => {});
+      setActionStatus("launching");
+      setActionLog(`Launching ${name}…`);
+      void launchXApp(activeWorkspaceId, name)
+        .then((r) => {
+          setActionStatus(null);
+          const out = (r.stdout || "") + (r.stderr || "");
+          if (/unable to open display/i.test(out)) setActionLog(`${name}: could not connect to the in-page X server`);
+          else if (r.timedOut) setActionLog(`${name}: still running (timed out waiting for exit)`);
+          else setActionLog(`${name} exited (${r.exitCode})${out ? "\n" + out.slice(0, 2000) : ""}`);
+        })
+        .catch((e) => {
+          setActionStatus("error");
+          setActionLog(`Launch failed: ${e instanceof Error ? e.message : String(e)}`);
+        });
     },
     [activeWorkspaceId],
   );
@@ -210,7 +225,7 @@ export function AppStore() {
 
   const selectedPkgData = selectedPkg ? packages.find((p) => p.name === selectedPkg) : null;
   const isInstalled = selectedPkg ? installedNames.has(selectedPkg) : false;
-  const busy = actionStatus === "installing" || actionStatus === "removing";
+  const busy = actionStatus === "installing" || actionStatus === "removing" || actionStatus === "launching";
   const hasNext = offset + PAGE_SIZE < total;
   const hasPrev = offset > 0;
   const pageNum = Math.floor(offset / PAGE_SIZE) + 1;
