@@ -57,6 +57,7 @@ next-env.d.ts
 .gm/last-instruction-ts
 .gm/long-gap-retry-state
 .gm/next-step.md
+.gm/residual-check-fired
 .claude/scheduled_tasks.lock
 # --- end gm managed ---
 .gm/pw-sock-*/
