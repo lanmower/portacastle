@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useActiveSandbox } from "@/stores/workspace-store";
 import { useClientSandboxStore, BOOT_STAGE_LABEL } from "@/stores/client-sandbox-store";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
+import { asset } from "@/lib/static-export";
 
 /**
  * GUI Desktop app: runs an in-guest framebuffer GUI program (containers/
@@ -21,7 +22,7 @@ import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placehold
  */
 const GUEST_W = 800;
 const GUEST_H = 600;
-const ELF_URL = "/containers/xappdemo.elf";
+const ELF_URL = asset("/containers/xappdemo.elf");
 
 // Module-level guard: only ONE GUI frame pump per workspace may run, even
 // across React strict-mode double-mounts (which would otherwise start two

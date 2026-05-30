@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { DesktopEntry } from "@/types/desktop-entry";
+import { asset } from "@/lib/static-export";
 
 /**
  * Map of app name patterns (lowercase) to Dusk icon SVG filenames.
@@ -83,7 +84,7 @@ const DUSK_ICON_MAP: Record<string, string> = {
 function getDuskIcon(appName: string): string | null {
   const key = appName.toLowerCase();
   const match = DUSK_ICON_MAP[key];
-  if (match) return `/icons/dusk/${match}.svg`;
+  if (match) return asset(`/icons/dusk/${match}.svg`);
   return null;
 }
 
@@ -214,6 +215,14 @@ const BUILTIN_APPS: DesktopEntry[] = [
   },
 ];
 
+// Base-path the builtin icon paths for the static (GitHub Pages) build. No-op
+// in server mode. (getDuskIcon already base-paths the dynamically-resolved
+// icons; this covers the literal icon paths on BUILTIN_APPS.)
+const BUILTIN_APPS_BASED: DesktopEntry[] = BUILTIN_APPS.map((a) => ({
+  ...a,
+  icon: a.icon ? asset(a.icon) : a.icon,
+}));
+
 interface DesktopStore {
   /** All apps: builtins + remote (full catalog, used by the app menu) */
   apps: DesktopEntry[];
@@ -227,9 +236,9 @@ interface DesktopStore {
 }
 
 export const useDesktopStore = create<DesktopStore>((set) => ({
-  apps: BUILTIN_APPS,
-  desktopIcons: BUILTIN_APPS,
-  wallpaper: "/wallpapers/default.svg",
+  apps: BUILTIN_APPS_BASED,
+  desktopIcons: BUILTIN_APPS_BASED,
+  wallpaper: asset("/wallpapers/default.svg"),
 
   setApps: (apps) => set({ apps }),
 

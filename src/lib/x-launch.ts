@@ -15,8 +15,9 @@
  */
 
 import { useClientSandboxStore } from "@/stores/client-sandbox-store";
+import { asset } from "@/lib/static-export";
 
-const CONTAINERS = "/containers";
+const CONTAINERS = asset("/containers");
 const DISPLAY = ":99";
 
 interface Fs {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useActiveSandbox } from "@/stores/workspace-store";
 import { useClientSandboxStore } from "@/stores/client-sandbox-store";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
+import { asset } from "@/lib/static-export";
 
 /**
  * X Apps: runs a REAL X server (Xvfb) and a REAL X client (xdpyinfo) entirely
@@ -20,7 +21,7 @@ import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placehold
  * /tmp/.X11-unix, then runConcurrent(Xvfb, xdpyinfo) and show xdpyinfo's output.
  */
 
-const CONTAINERS = "/containers";
+const CONTAINERS = asset("/containers");
 const DISPLAY = ":99";
 
 async function fetchBytes(url: string): Promise<Uint8Array> {

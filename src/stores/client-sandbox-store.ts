@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Sandbox } from "portabox";
+import { asset } from "@/lib/static-export";
 
 /**
  * In-page sandbox store.
@@ -19,7 +20,8 @@ import type { Sandbox } from "portabox";
  *   - Desktop: sandbox.attachDisplay(canvas) + sandbox.pushInput(evt)
  */
 
-const CONTAINERS = "/containers";
+// Base-pathed under static export (GitHub Pages serves under /<repo>/).
+const CONTAINERS = asset("/containers");
 
 export type SandboxStatus =
   | "idle"

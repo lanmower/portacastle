@@ -1,0 +1,67 @@
+name: Deploy to GitHub Pages
+
+# Build the static (server-less, guest-only) export and publish it to GitHub
+# Pages on every push to the default branch. The site runs entirely in-page via
+# the blink WASM sandbox; cross-origin isolation is provided client-side by the
+# bundled coi-serviceworker (GH Pages can't send COOP/COEP headers).
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+# GITHUB_TOKEN permissions the Pages deploy needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never run two deploys at once; cancel superseded in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        # Dummy token: .npmrc references ${NPM_TOKEN} for registry reads; a dummy
+        # works for public packages. portabox is a git dep whose prepare hook
+        # builds its dist on install.
+        env:
+          NPM_TOKEN: dummy
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build static export
+        env:
+          NEXT_PUBLIC_STATIC_EXPORT: "1"
+          # GitHub Pages project site is served under /<repo>/.
+          NEXT_PUBLIC_BASE_PATH: /portacastle
+        run: pnpm run build:static
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

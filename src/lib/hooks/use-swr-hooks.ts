@@ -8,6 +8,7 @@ import type { DesktopEntry } from "@/types/desktop-entry";
 import { fetcher, SWR_KEYS } from "@/lib/swr";
 import { sandboxServiceFetcher } from "@/lib/hooks/use-sandbox-service-client";
 import { useWorkspaceStore } from "@/stores/workspace-store";
+import { IS_STATIC_EXPORT } from "@/lib/static-export";
 
 // ---------------------------------------------------------------------------
 // Auth
@@ -29,15 +30,33 @@ interface AuthUser {
   vercelAccount: VercelAccountInfo | null;
 }
 
+// Static guest used on the GitHub Pages build, where /api/auth/me does not
+// exist. Matches the server session shape for a guest, with unlimited local
+// workspaces and no Vercel link.
+const STATIC_GUEST: AuthUser = {
+  id: "static-guest",
+  email: null,
+  name: "Guest",
+  role: "guest",
+  workspaceLimit: null,
+  vercelConnected: false,
+  vercelAccount: null,
+};
+
 export function useUser() {
+  // Static export: no /api/auth/me endpoint — return the synthetic guest and
+  // never fetch (passing null as the SWR key disables the request).
   const { data, error, isLoading } = useSWR<AuthUser>(
-    SWR_KEYS.user,
+    IS_STATIC_EXPORT ? null : SWR_KEYS.user,
     fetcher,
     {
       revalidateOnFocus: false,
       shouldRetryOnError: false,
     },
   );
+  if (IS_STATIC_EXPORT) {
+    return { user: STATIC_GUEST, isLoading: false, error: undefined };
+  }
   return {
     user: data ?? null,
     isLoading,
