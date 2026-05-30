@@ -146,7 +146,7 @@ export function AppStore() {
     if (!activeWorkspaceId) return;
     let cancelled = false;
     void runExclusive(activeWorkspaceId, (sb) => sb.pkgInstalled())
-      .then((list) => { if (!cancelled) setInstalledNames(new Set(list.map((p) => p.name))); })
+      .then((list: { name: string }[]) => { if (!cancelled) setInstalledNames(new Set(list.map((p) => p.name))); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [activeWorkspaceId, runExclusive, reloadToken]);
