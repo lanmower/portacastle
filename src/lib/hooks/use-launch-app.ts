@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useWindowStore } from "@/stores/window-store";
-import { useXpraStore } from "@/stores/xpra-store";
+import { useActiveSandbox } from "@/stores/workspace-store";
+import { launchXApp } from "@/lib/x-launch";
 import { APP_COMPONENTS } from "@/components/apps/app-registry";
 import type { DesktopEntry } from "@/types/desktop-entry";
 
@@ -23,11 +24,12 @@ const DEFAULT_WINDOW_SIZE = { width: 800, height: 600 };
  * Hook that returns a stable callback to launch any desktop entry.
  *
  * Builtin apps (those registered in APP_COMPONENTS) open a React window via
- * the window store. Everything else is dispatched to Xpra as an X11 launch.
+ * the window store. Everything else is an X11 app launched in-page against the
+ * Xvfb under blink (replaces the removed Xpra/remote-VM launch path).
  */
 export function useLaunchApp() {
   const openWindow = useWindowStore((s) => s.openWindow);
-  const launchX11App = useXpraStore((s) => s.launchApp);
+  const { activeWorkspaceId } = useActiveSandbox();
 
   const launch = useCallback(
     (entry: DesktopEntry) => {
@@ -37,11 +39,13 @@ export function useLaunchApp() {
         const { width, height } =
           APP_WINDOW_DEFAULTS[appId] ?? DEFAULT_WINDOW_SIZE;
         openWindow({ title: entry.name, appId, width, height });
-      } else {
-        launchX11App(appId);
+      } else if (activeWorkspaceId) {
+        // X11 app: run it as an X client against the in-page Xvfb. The exec
+        // command (or app id) is the binary name.
+        void launchXApp(activeWorkspaceId, entry.exec || appId).catch(() => {});
       }
     },
-    [openWindow, launchX11App],
+    [openWindow, activeWorkspaceId],
   );
 
   return launch;
