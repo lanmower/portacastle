@@ -158,7 +158,11 @@ export function XAppsApp() {
       batch.push({ path: "/tmp/.X11-unix/.keep", content: new Uint8Array(0) });
 
       mark(`batch built (${batch.length} files); entering runExclusive`);
-      const result = await runExclusive(activeWorkspaceId, async (sb) => {
+      const result = await runExclusive<{
+        timedOut: boolean;
+        client: { exitCode: number | string; stdout: string; stderr: string };
+        server: { exitCode: number | string; stdout: string; stderr: string };
+      }>(activeWorkspaceId, async (sb) => {
         mark("runExclusive: writeFiles start");
         // Write the overlay straight into the live guest MEMFS. The high-level
         // sb.writeFiles did not land files in the in-browser path (they were

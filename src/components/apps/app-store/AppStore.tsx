@@ -159,7 +159,10 @@ export function AppStore() {
     if (!activeWorkspaceId || !selectedPkg) { setPkgInfo(null); return; }
     let cancelled = false;
     setInfoLoading(true);
-    void runExclusive(activeWorkspaceId, (sb) => sb.pkgInfo(selectedPkg))
+    void runExclusive<{ version: string; summary: string; repo: string } | null>(
+      activeWorkspaceId,
+      (sb) => sb.pkgInfo(selectedPkg),
+    )
       .then((info) => {
         if (cancelled || !info) return;
         setPkgInfo({ version: info.version, description: info.summary, repository: info.repo } as PackageInfo);
