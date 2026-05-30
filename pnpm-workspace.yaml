@@ -1,0 +1,7 @@
+# pnpm 10 blocks dependency build/lifecycle scripts unless allowlisted here.
+# portabox is a git dependency (github:AnEntrypoint/portabox) whose `prepare`
+# hook builds its dist (tsdown) on install; tsdown/esbuild need their own build
+# scripts too. Allow exactly the packages that must run scripts for the build.
+onlyBuiltDependencies:
+  - portabox
+  - esbuild
