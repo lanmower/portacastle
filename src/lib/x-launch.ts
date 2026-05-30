@@ -159,6 +159,15 @@ export async function launchXApp(
   return runExclusive(workspaceId, async (sb) => {
     await ensureXStack(sb);
     const path = command.startsWith("/") ? command : `/usr/bin/${command}`;
+    // Auto-install via apk if the binary is not present in the guest FS (so a
+    // dock entry for a not-yet-installed app installs-then-launches).
+    const fs = liveFs(sb);
+    let present = false;
+    try { fs?.stat(path); present = true; } catch { present = false; }
+    if (!present && !command.startsWith("/")) {
+      const apkSb = sb as { pkgInstall?: (n: string) => Promise<unknown> };
+      if (apkSb.pkgInstall) { try { await apkSb.pkgInstall(command); } catch { /* fall through; run may still fail */ } }
+    }
     const r = await (sb as {
       runConcurrent: (
         server: { path: string; argv?: string[] },

@@ -165,6 +165,53 @@ const BUILTIN_APPS: DesktopEntry[] = [
     comment: "Real Xvfb + X client (xdpyinfo) in-page",
     onDesktop: true,
   },
+  // The original sandcastle X11 apps: launched as X clients against the in-page
+  // Xvfb (via useLaunchApp -> launchXApp). Missing binaries are apk-installed on
+  // first launch. These mirror the classic X demo apps the App Store offered.
+  {
+    id: "xeyes",
+    name: "xeyes",
+    icon: "/icons/dusk/xeyes.svg",
+    exec: "xeyes",
+    type: "x11",
+    component: null,
+    categories: ["X11", "Utilities"],
+    comment: "Eyes that follow the cursor",
+    onDesktop: true,
+  },
+  {
+    id: "xclock",
+    name: "xclock",
+    icon: "/icons/dusk/calculator.svg",
+    exec: "xclock",
+    type: "x11",
+    component: null,
+    categories: ["X11", "Utilities"],
+    comment: "Analog/digital X clock",
+    onDesktop: true,
+  },
+  {
+    id: "xcalc",
+    name: "xcalc",
+    icon: "/icons/dusk/calculator.svg",
+    exec: "xcalc",
+    type: "x11",
+    component: null,
+    categories: ["X11", "Utilities"],
+    comment: "Scientific calculator",
+    onDesktop: true,
+  },
+  {
+    id: "xterm",
+    name: "xterm",
+    icon: "/icons/dusk/terminal.svg",
+    exec: "xterm",
+    type: "x11",
+    component: null,
+    categories: ["X11", "System"],
+    comment: "X terminal emulator",
+    onDesktop: true,
+  },
 ];
 
 interface DesktopStore {
