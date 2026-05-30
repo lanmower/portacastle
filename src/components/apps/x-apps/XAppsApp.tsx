@@ -165,7 +165,7 @@ export function XAppsApp() {
     void run();
   }, [activeWorkspaceId, run]);
 
-  if (!activeWorkspaceId) return <NoWorkspacePlaceholder />;
+  if (!activeWorkspaceId) return <NoWorkspacePlaceholder message="Open a workspace to run X apps" />;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 12, gap: 8 }}>

@@ -59,3 +59,4 @@ next-env.d.ts
 .gm/next-step.md
 .claude/scheduled_tasks.lock
 # --- end gm managed ---
+.gm/pw-sock-*/
