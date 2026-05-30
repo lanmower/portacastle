@@ -118,7 +118,7 @@ export function AppStore() {
     if (view === "search" && !debouncedSearch) { setPackages([]); setTotal(0); return; }
     setIsLoading(true);
     setSearchError(null);
-    void runExclusive(activeWorkspaceId, async (sb) => {
+    void runExclusive<{ packages: { name: string; summary: string; version: string }[]; total: number }>(activeWorkspaceId, async (sb) => {
       if (view === "installed") {
         const list = await sb.pkgInstalled();
         const filtered = q
@@ -145,8 +145,11 @@ export function AppStore() {
   useEffect(() => {
     if (!activeWorkspaceId) return;
     let cancelled = false;
-    void runExclusive(activeWorkspaceId, (sb) => sb.pkgInstalled())
-      .then((list: { name: string }[]) => { if (!cancelled) setInstalledNames(new Set(list.map((p) => p.name))); })
+    void runExclusive<{ name: string; version: string }[]>(
+      activeWorkspaceId,
+      (sb) => sb.pkgInstalled(),
+    )
+      .then((list) => { if (!cancelled) setInstalledNames(new Set(list.map((p) => p.name))); })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [activeWorkspaceId, runExclusive, reloadToken]);
