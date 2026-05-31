@@ -216,6 +216,23 @@ export async function launchXApp(
   }
 
   return runExclusive(workspaceId, async () => {
+    // Clear any stale X server socket + lock left by a PRIOR server VM that
+    // exited without cleanup (e.g. a previous run that crashed, or a forever
+    // client whose server thread died). A leftover /tmp/.X11-unix/X99 or
+    // /tmp/.X99-lock makes the fresh Xvfb fatal-exit with
+    // "_XSERVTransMakeAllCOTSServerListeners: server already running /
+    // Cannot establish any listening sockets" (witnessed: a 2nd launch on a
+    // dirty :99 dies at slot0). runExclusive guarantees no LIVE server holds
+    // :99 here (a concurrent launch is serialized behind us), so anything at
+    // these paths is stale and safe to remove before binding.
+    const xfs = liveFs(sb);
+    if (xfs) {
+      const dpyNum = DISPLAY.replace(":", "");
+      for (const stale of [`/tmp/.X11-unix/X${dpyNum}`, `/tmp/.X${dpyNum}-lock`]) {
+        try { xfs.stat(stale); try { xfs.unlink(stale); } catch { /* best effort */ } }
+        catch { /* absent — nothing to clear */ }
+      }
+    }
     // Proven single-call model: run the Xvfb server + the X client CONCURRENTLY
     // in one runConcurrent (slot0 server + slot1 client over the in-process
     // AF_UNIX layer) -- the path proven to connect + paint (X Apps/xdpyinfo,

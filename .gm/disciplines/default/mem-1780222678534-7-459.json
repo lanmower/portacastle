@@ -1,0 +1,3 @@
+## Resolved mutable: mut-scheduler-wedge-cause
+
+NOT a scheduler deadlock. browser-592 clean: server slot0 alive + gen advancing ~4300/s under active forever-drawing xeyes. The freeze seen earlier was SOCKET COLLISION: browser-589 slot0status=1, stderr=_XSERVTransMakeAllCOTSServerListeners: server already running / Cannot establish any listening sockets (two launchXApp racing :99). Real concurrency defect = stale-socket/display :99 collision on 2nd launch.

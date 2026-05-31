@@ -1,0 +1,3 @@
+## Resolved mutable: mut-fb-crossvm-resolve
+
+CONFIRMED: browser-608 red RGB565 bytes [0,248] present in shared HEAPU8 at host offset 153026560 (131072 pairs); browser-611 spy_address(fbvaddr)=0 from main thread + vm_set(0/1/2) all throw memory-access-out-of-bounds; browser-612 get_fb_ptr() faults. Root cause: fb host ptr resolves only on the registering VM (server worker thread); main-thread display blit cannot resolve cross-VM. All VMs share ONE linear memory so the bytes ARE reachable. Fix=blink C: store resolved host offset at syscall 0x5fb (runs on server thread), return from get_fb_ptr. User authorized lanmower/blink edit.

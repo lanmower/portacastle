@@ -1,0 +1,3 @@
+## Resolved mutable: mut-fb-allzero-locus
+
+browser-592 ws-66qr06du clean single-server: slot0done=0 (server ALIVE), genSamples=[106951,108336,109913,111488,113046,114615,116180,117744] (~4300 gen/s, BlockHandler re-publishing every dispatch cycle), xeyes connected slot1 running; YET core.fbView() nz=0 max=0 over full 800x600x16 fb (len 1920000). LOCUS=(a) Xvfb does not composite client/root paint into pfbMemory; host page-walk + RGB565 expansion correct; scheduler healthy. Fix in xorg-patched-build.yml InitOutput.c.
