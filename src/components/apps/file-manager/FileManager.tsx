@@ -138,7 +138,7 @@ export function FileManager() {
         try {
           await mkdir(item.path);
         } catch {
-          // already exists or unwritable — best-effort
+          // already exists or unwritable -- best-effort
         }
       }
       revalidate();

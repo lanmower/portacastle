@@ -10,7 +10,7 @@ import {
 } from "react";
 
 // ---------------------------------------------------------------------------
-// CollapsibleSidebar — resizable sidebar with collapse/expand toggle.
+// CollapsibleSidebar -- resizable sidebar with collapse/expand toggle.
 //
 // Usage:
 //   <CollapsibleSidebar defaultSize={220} min={160} max={360}>

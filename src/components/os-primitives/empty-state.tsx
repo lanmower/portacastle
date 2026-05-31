@@ -3,7 +3,7 @@
 import { type ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
-// EmptyState — placeholder for empty views (no files, no results, etc.).
+// EmptyState -- placeholder for empty views (no files, no results, etc.).
 //
 // Usage:
 //   <EmptyState

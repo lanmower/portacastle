@@ -50,7 +50,7 @@ interface ButtonProps
   suffix?: React.ReactNode;
   /** HTML button type attribute (named typeName for compat with geistcn API) */
   typeName?: "submit" | "button" | "reset";
-  /** Visual type — maps to variant for compat */
+  /** Visual type -- maps to variant for compat */
   type?: "shadow" | "invert" | "unstyled";
 }
 

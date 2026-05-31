@@ -10,7 +10,7 @@ import {
 } from "react";
 
 // ---------------------------------------------------------------------------
-// SplitPane — resizable two-panel layout (horizontal or vertical).
+// SplitPane -- resizable two-panel layout (horizontal or vertical).
 //
 // Usage:
 //   <SplitPane defaultSize={240} min={120} max={400}>
@@ -137,7 +137,7 @@ function SplitPaneRoot({
 }
 
 // ---------------------------------------------------------------------------
-// SplitPane.Panel — thin wrapper for semantic clarity
+// SplitPane.Panel -- thin wrapper for semantic clarity
 // ---------------------------------------------------------------------------
 
 function Panel({

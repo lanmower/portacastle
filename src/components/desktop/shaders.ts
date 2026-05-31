@@ -35,7 +35,7 @@ const AURORA_FRAGMENT = `
   }
 `;
 
-// Soft drifting blobs — like vercel.com hero
+// Soft drifting blobs -- like vercel.com hero
 const MESH_GRADIENT_FRAGMENT = `
   precision mediump float;
   uniform float u_time;
@@ -106,7 +106,7 @@ const WAVES_FRAGMENT = `
   }
 `;
 
-// Slowly morphing simplex noise — organic texture
+// Slowly morphing simplex noise -- organic texture
 const NOISE_FLOW_FRAGMENT = `
   precision mediump float;
   uniform float u_time;
@@ -162,7 +162,7 @@ const NOISE_FLOW_FRAGMENT = `
   }
 `;
 
-// Slow radial ripple — concentric circles emanating from center
+// Slow radial ripple -- concentric circles emanating from center
 const RIPPLE_FRAGMENT = `
   precision mediump float;
   uniform float u_time;

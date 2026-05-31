@@ -8,7 +8,7 @@ import { asset } from "@/lib/static-export";
 
 /**
  * X Apps: runs a REAL X server (Xvfb) and a REAL X client (xdpyinfo) entirely
- * in-page under the blink WASM emulator — no server, no network. The two guests
+ * in-page under the blink WASM emulator -- no server, no network. The two guests
  * run on their own worker pthreads and talk over blink's in-process AF_UNIX
  * layer; this is the same path proven by the webix XC-smoke CI witness.
  *
@@ -142,7 +142,7 @@ export function XAppsApp() {
       // Build ONE batch of files: the whole overlay (libs + binaries), the
       // patched X server, and the precompiled keymap at every plausible XKB
       // output dir. writeFiles streams them into the guest FS in a single VM
-      // interaction (auto-creating dirs) — per-file runCommand("chmod"/mkdir)
+      // interaction (auto-creating dirs) -- per-file runCommand("chmod"/mkdir)
       // over ~700 files would spawn the VM hundreds of times and hang the page.
       const batch: { path: string; content: Uint8Array }[] = [];
       for (const e of entries) if (!e.isDir) batch.push({ path: e.path, content: e.data });
@@ -223,11 +223,13 @@ export function XAppsApp() {
     }
   }, [activeWorkspaceId, runExclusive]);
 
-  // Auto-run once when the app opens for a workspace.
+  // Auto-run once when the app opens for a workspace. Defer the kick to a
+  // microtask so run()'s opening setStatus() does not fire synchronously inside
+  // the effect body (which would trigger a cascading render).
   useEffect(() => {
     if (!activeWorkspaceId || ran.current) return;
     ran.current = true;
-    void run();
+    queueMicrotask(() => void run());
   }, [activeWorkspaceId, run]);
 
   if (!activeWorkspaceId) return <NoWorkspacePlaceholder message="Open a workspace to run X apps" />;
@@ -235,14 +237,14 @@ export function XAppsApp() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", padding: 12, gap: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <strong>X Apps — real Xvfb + xdpyinfo, in-page</strong>
+        <strong>X Apps -- real Xvfb + xdpyinfo, in-page</strong>
         <button onClick={() => void run()} disabled={status === "running"}>
-          {status === "running" ? "Running…" : "Re-run"}
+          {status === "running" ? "Running..." : "Re-run"}
         </button>
         <span style={{ opacity: 0.7 }}>
-          {status === "running" && "starting X server + client…"}
-          {status === "done" && "✓ X client connected to in-page Xvfb"}
-          {status === "error" && "✗ failed"}
+          {status === "running" && "starting X server + client..."}
+          {status === "done" && "[ok] X client connected to in-page Xvfb"}
+          {status === "error" && "[fail] failed"}
         </span>
       </div>
       {err && <div style={{ color: "#c00", fontFamily: "monospace" }}>{err}</div>}

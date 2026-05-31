@@ -17,7 +17,7 @@ function AppContent({ appId, meta }: { appId: string; meta?: Record<string, unkn
   const AppComponent = APP_COMPONENTS[appId];
   if (AppComponent) return <AppComponent meta={meta} />;
 
-  // Live in-page X11 window (appId "x11:<command>") — same blit surface as the
+  // Live in-page X11 window (appId "x11:<command>") -- same blit surface as the
   // desktop WindowRenderer; the client was launched by use-launch-app.
   if (appId.startsWith("x11:") && activeWorkspaceId) {
     return <XWindowCanvas workspaceId={activeWorkspaceId} />;

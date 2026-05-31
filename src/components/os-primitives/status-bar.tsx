@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import { Separator } from "@/components/ui/separator";
 
 // ---------------------------------------------------------------------------
-// StatusBar — bottom bar for app-level status, breadcrumbs, and indicators.
+// StatusBar -- bottom bar for app-level status, breadcrumbs, and indicators.
 //
 // Usage:
 //   <StatusBar>

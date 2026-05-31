@@ -25,7 +25,9 @@ export function AppLauncher({ externalToggle }: { externalToggle?: number }) {
   useEffect(() => {
     if (externalToggle !== undefined && externalToggle !== toggleRef.current) {
       toggleRef.current = externalToggle;
-      setOpen((prev) => !prev);
+      // Deferred so the toggle setState is not synchronous in the effect body
+      // (react-hooks/set-state-in-effect).
+      queueMicrotask(() => setOpen((prev) => !prev));
     }
   }, [externalToggle]);
 

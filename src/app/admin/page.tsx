@@ -279,7 +279,15 @@ function DonutChart({
   const radius = 60;
   const strokeWidth = 16;
   const circumference = 2 * Math.PI * radius;
-  let offset = 0;
+  // Precompute the cumulative arc offset for each segment without reassigning a
+  // variable during render (react-hooks/immutability): each offset is the sum of
+  // all prior segments' arc lengths.
+  const offsets = data.map(
+    (_, i) =>
+      data
+        .slice(0, i)
+        .reduce((sum, p) => sum + (p.value / total) * circumference, 0),
+  );
 
   return (
     <div className="rounded-lg border border-gray-alpha-400 bg-background-100 p-5">
@@ -288,11 +296,10 @@ function DonutChart({
       </h3>
       <div className="flex items-center gap-6">
         <svg width="160" height="160" viewBox="0 0 160 160">
-          {data.map((d) => {
+          {data.map((d, i) => {
             const pct = d.value / total;
             const dashArray = `${pct * circumference} ${circumference}`;
-            const currentOffset = offset;
-            offset += pct * circumference;
+            const currentOffset = offsets[i];
             return (
               <circle
                 key={d.label}

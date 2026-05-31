@@ -4,7 +4,7 @@ import { type ReactNode } from "react";
 import { Separator } from "@/components/ui/separator";
 
 // ---------------------------------------------------------------------------
-// PropertyPanel — key-value inspector panel (like Finder's "Get Info").
+// PropertyPanel -- key-value inspector panel (like Finder's "Get Info").
 //
 // Usage:
 //   <PropertyPanel title="File Info">

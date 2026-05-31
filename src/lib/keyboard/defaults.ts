@@ -1,7 +1,7 @@
 import type { ShortcutDefinition } from "./types";
 
 export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
-  // ── Window Management ──────────────────────────────────────────────
+  // -- Window Management ----------------------------------------------
   {
     id: "window.cycle-next",
     label: "Switch Window",
@@ -54,7 +54,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultBinding: { key: "ArrowRight", modifiers: ["meta"] },
   },
 
-  // ── Workspace ──────────────────────────────────────────────────────
+  // -- Workspace ------------------------------------------------------
   {
     id: "workspace.1",
     label: "Workspace 1",
@@ -119,7 +119,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultBinding: { key: "9", modifiers: ["ctrl"] },
   },
 
-  // ── Launcher ───────────────────────────────────────────────────────
+  // -- Launcher -------------------------------------------------------
   {
     id: "launcher.open",
     label: "App Launcher",
@@ -149,7 +149,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     defaultBinding: { key: ",", modifiers: ["meta"] },
   },
 
-  // ── System ─────────────────────────────────────────────────────────
+  // -- System ---------------------------------------------------------
   {
     id: "system.notification-center",
     label: "Notification Center",

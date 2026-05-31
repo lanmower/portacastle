@@ -32,9 +32,9 @@ export type SandboxStatus =
 /** Cold-boot stage label per workspace, for a legible boot indicator. */
 export type BootStage = "runtime" | "rootfs" | "mount" | "ready";
 export const BOOT_STAGE_LABEL: Record<BootStage, string> = {
-  runtime: "Fetching runtime…",
-  rootfs: "Fetching filesystem…",
-  mount: "Mounting filesystem…",
+  runtime: "Fetching runtime...",
+  rootfs: "Fetching filesystem...",
+  mount: "Mounting filesystem...",
   ready: "Ready",
 };
 

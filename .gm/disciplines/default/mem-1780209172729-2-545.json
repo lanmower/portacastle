@@ -1,0 +1,3 @@
+## Resolved mutable: mut-1780208667165
+
+browser 71 :3000 ws-pdasj8yx: xeyes canvas 90000px nonzero=0; live displayInfo gen frozen 11/11; displayPixels 800x600 gen11 nonzero=0 len1920000 = all-zero Xvfb fb (external). GUI xappdemo __sc.gui frames1 blits1 lastOut shellprompt-only canvas nonzero=0; direct runCommand(/xappdemo) threw RuntimeError: memory access out of bounds = blink VM ELF-exec fault (blinkenlib.wasm rebuilt 05-30 after 05-29 working witness). Both root causes EXTERNAL (lanmower/blink). Reachable: black-state UX+error surface.

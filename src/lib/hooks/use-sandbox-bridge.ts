@@ -39,24 +39,26 @@ interface BridgeNotificationsResponse {
  * notification store so they appear as toast popups and in the notification
  * center, identical to Xpra-forwarded notifications.
  *
- * Uses SWR with `refreshInterval` for efficient polling — only fetches
+ * Uses SWR with `refreshInterval` for efficient polling -- only fetches
  * notifications newer than the last seen timestamp.
  */
 export function useDbusNotifications() {
   const { activeWorkspaceId, sandbox } = useActiveSandbox();
-  const sinceRef = useRef(Date.now());
+  // Lazy-init the "since" timestamp once, off the render path: calling Date.now()
+  // directly in useRef(...) is an impure call during render
+  // (react-hooks/purity). null until the first effect run stamps it.
+  const sinceRef = useRef<number | null>(null);
   const addNotification = useNotificationStore((s) => s.addNotification);
 
   // Remote services backend removed in favor of the in-page portabox sandbox.
   // There is no longer a services domain, so this bridge is disabled (no-op):
-  // the SWR key stays null and nothing is fetched.
+  // the SWR key is always null and nothing is fetched. (When a key is wired back
+  // in, build it inside the fetcher/effect so sinceRef is not read during render
+  // -- react-hooks/refs.)
   void sandbox;
-  const servicesUrl: string | null = null;
 
   const { data } = useSWR<BridgeNotificationsResponse>(
-    servicesUrl
-      ? `${servicesUrl}/bridge/notifications?since=${sinceRef.current}`
-      : null,
+    null,
     sandboxServiceFetcher,
     {
       refreshInterval: 1000,
@@ -68,10 +70,12 @@ export function useDbusNotifications() {
   );
 
   useEffect(() => {
+    // Stamp the initial "since" off the render path (lazy-init).
+    if (sinceRef.current === null) sinceRef.current = Date.now();
     if (!data?.notifications?.length) return;
 
     for (const notif of data.notifications) {
-      if (notif.timestamp > sinceRef.current) {
+      if (notif.timestamp > (sinceRef.current ?? 0)) {
         sinceRef.current = notif.timestamp;
       }
 
@@ -134,7 +138,7 @@ export function useDesktopEntryMonitor() {
     const gen = data.generation;
 
     if (generationRef.current === null) {
-      // First load — just record the baseline
+      // First load -- just record the baseline
       generationRef.current = gen;
       return;
     }

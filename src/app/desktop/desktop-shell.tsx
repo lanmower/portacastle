@@ -363,7 +363,7 @@ export function DesktopShell({ user, targetSlug }: DesktopShellProps) {
   // ---- Hydrate sandbox info for non-active workspaces ----
   // Previously this polled the remote /api/sandbox/${id} endpoint to detect
   // "lost" sandboxes and backfill SandboxInfo. There is no remote sandbox to
-  // poll anymore — in-page sandboxes can't be lost — so we synthesize local
+  // poll anymore -- in-page sandboxes can't be lost -- so we synthesize local
   // SandboxInfo for any active workspace that doesn't have it yet.
   const hydratedRef = useRef<Set<string>>(new Set());
   useEffect(() => {

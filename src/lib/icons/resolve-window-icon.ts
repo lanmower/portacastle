@@ -17,7 +17,7 @@ export function resolveWindowIcon(appId: string): string | null {
 }
 
 /**
- * React hook version — subscribes to the desktop store so the component
+ * React hook version -- subscribes to the desktop store so the component
  * re-renders when the app list / icons change.
  */
 export function useResolvedIcon(appId: string): string | null {

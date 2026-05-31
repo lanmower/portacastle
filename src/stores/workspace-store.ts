@@ -129,7 +129,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   },
 
   createWorkspace: async (name) => {
-    set({ creatingStatus: "Booting in-page sandbox…", creatingError: null });
+    set({ creatingStatus: "Booting in-page sandbox...", creatingError: null });
     const id = uid();
     const workspace: Workspace = {
       id,
@@ -218,7 +218,7 @@ export const useWorkspaceStore = create<WorkspaceStore>((set, get) => ({
   restartWorkspace: async (id) => {
     const workspace = get().workspaces.find((w) => w.id === id);
     if (!workspace) return;
-    set({ creatingStatus: "Restarting sandbox…" });
+    set({ creatingStatus: "Restarting sandbox..." });
     const sb = useClientSandboxStore.getState();
     try {
       await sb.disposeSandbox(id);

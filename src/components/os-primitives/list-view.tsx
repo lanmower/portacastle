@@ -10,7 +10,7 @@ import {
 } from "react";
 
 // ---------------------------------------------------------------------------
-// ListView — selectable list with keyboard navigation.
+// ListView -- selectable list with keyboard navigation.
 //
 // Usage:
 //   <ListView
@@ -67,7 +67,11 @@ export function ListView<T>({
   );
 
   useEffect(() => {
-    setFocusIndex((prev) => clamp(prev));
+    // Re-clamp the focused index when the list shrinks. Deferred to a microtask
+    // so the setState is not synchronous in the effect body
+    // (react-hooks/set-state-in-effect); a one-tick delay is imperceptible for
+    // keyboard-focus bookkeeping.
+    queueMicrotask(() => setFocusIndex((prev) => clamp(prev)));
   }, [items.length, clamp]);
 
   const scrollToIndex = useCallback((i: number) => {

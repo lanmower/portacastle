@@ -78,9 +78,10 @@ export function GuiDesktopApp() {
 
     (async () => {
       setStatus("booting");
-      let sandbox;
+      // Await boot for its side effects + error surfacing only; the frame pump
+      // reaches the sandbox through runExclusive, so the handle itself is unused.
       try {
-        sandbox = await ensureSandbox(activeWorkspaceId);
+        await ensureSandbox(activeWorkspaceId);
       } catch (err) {
         if (running) setStatus("error: " + (err instanceof Error ? err.message : String(err)));
         return;
@@ -159,7 +160,7 @@ export function GuiDesktopApp() {
             // memory, the window state lives in shared memory and this stdout
             // round-trip disappears. Measured cost is sub-millisecond (a short
             // split/map over a one-line string), so it is not the per-frame
-            // bottleneck — the blit + runElf dominate; left as-is intentionally.
+            // bottleneck -- the blit + runElf dominate; left as-is intentionally.
             const _parse0 = performance.now();
             // stdout may carry a shell-prompt prefix ("$ xappdemo\n...") and
             // blank lines; take the LAST line that actually contains the state
@@ -183,7 +184,7 @@ export function GuiDesktopApp() {
             const damage = Number.isFinite(damageNum) ? damageNum : 1;
             // Cheap generation probe before the 1.9MB displayPixels copy: if the
             // guest didn't re-register the framebuffer (generation unchanged) AND
-            // it isn't the first paint, skip the pixel snapshot entirely — the
+            // it isn't the first paint, skip the pixel snapshot entirely -- the
             // displayed frame is already current. displayInfo() reads only the
             // fb header, not the pixels.
             const firstPaintProbe = lastGen < 0;
@@ -263,7 +264,7 @@ export function GuiDesktopApp() {
             {status === "booting"
               ? bootStage
                 ? BOOT_STAGE_LABEL[bootStage]
-                : "Booting in-page sandbox…"
+                : "Booting in-page sandbox..."
               : status}
           </p>
         </div>

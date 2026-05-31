@@ -22,7 +22,7 @@ export function WindowRenderer() {
   return (
     <>
       {windows.map((win) => {
-        // Live in-page X11 windows use appId format "x11:<command>" — blit the
+        // Live in-page X11 windows use appId format "x11:<command>" -- blit the
         // persistent Xvfb framebuffer to a canvas (no remote VM, no xpra).
         if (win.appId.startsWith("x11:") && activeWorkspaceId) {
           return (

@@ -12,7 +12,7 @@ import { getPerf } from "@/lib/perf";
  *
  * Unlike GuiDesktopApp (which execs a render-once ELF per frame), the X server
  * runs CONTINUOUSLY on its own worker pthread, so this component never drives
- * the VM — it only SAMPLES the framebuffer each rAF and uploads changed frames.
+ * the VM -- it only SAMPLES the framebuffer each rAF and uploads changed frames.
  * The launch (startXServer + launchXClient) is done by launchXApp before the
  * window opens; this component is purely the display + input surface.
  *
@@ -21,10 +21,29 @@ import { getPerf } from "@/lib/perf";
 const FB_W = 800;
 const FB_H = 600;
 
+// Sample a sparse grid of pixels and report whether ANY are non-black. A live X
+// client paints colour into the framebuffer; an all-zero fb means the X server
+// published a frame but no client paint ever landed in it (the documented
+// headless-Xvfb no-expose/no-damage case), which would otherwise show as a mute
+// black canvas indistinguishable from "still booting".
+function fbHasContent(pixels: Uint8Array | Uint8ClampedArray): boolean {
+  // Step in whole-pixel (4-byte) strides across the buffer; ~4096 samples is
+  // plenty to detect any painted region without walking 1.9MB every frame.
+  const stride = Math.max(4, Math.floor(pixels.length / (4096 * 4)) * 4);
+  for (let i = 0; i < pixels.length; i += stride) {
+    if (pixels[i] || pixels[i + 1] || pixels[i + 2]) return true;
+  }
+  return false;
+}
+
 export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
   const ensureSandbox = useClientSandboxStore((s) => s.ensureSandbox);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // status drives the overlay: connecting -> running (painted content) or a
+  // precise diagnostic ("no display output", "error: ...") so the canvas is never
+  // a silent black rectangle the user can't interpret.
   const [status, setStatus] = useState("connecting");
+  const [diag, setDiag] = useState<string | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -48,6 +67,17 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
     }
 
     let sandbox: Awaited<ReturnType<typeof ensureSandbox>> | null = null;
+    // Diagnostic counters mirrored to window.__sc.xwindow so the live page (and
+    // browser-witness) can read exactly why a window is or isn't drawing.
+    const xdbg = {
+      ticks: 0,
+      paints: 0, // frames whose fb actually had non-black content
+      blankFrames: 0, // frames where the fb was published but all-zero
+      lastGen: -1,
+      lastErr: null as string | null,
+    };
+    (window as unknown as { __sc?: Record<string, unknown> }).__sc ??= {};
+    (window as unknown as { __sc: Record<string, unknown> }).__sc.xwindow = xdbg;
 
     // Coalesce pointer-motion: a fast drag fires mousemove hundreds of times a
     // second, but the X server only needs the LATEST position per frame. Stash
@@ -99,6 +129,7 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
         if (!running || !sandbox) return;
         const rec = getPerf().begin("xwindow");
         let painted = false;
+        xdbg.ticks++;
         try {
           // Flush the single latest coalesced pointer position for this frame.
           if (pendingMotion) {
@@ -140,11 +171,40 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
                 ctx.putImageData(f, 0, 0);
               });
               lastGen = view.generation;
+              xdbg.lastGen = view.generation;
               painted = true;
+              // Distinguish a real painted frame from an all-zero (black)
+              // framebuffer: a published-but-blank fb means the X client never
+              // drew into the server's screen buffer, so surface that precisely
+              // instead of leaving a mute black canvas. Once any frame has real
+              // content the window is "running" and the overlay clears.
+              if (fbHasContent(view.pixels)) {
+                xdbg.paints++;
+                // setState bails out when the value is unchanged, so these are
+                // cheap to call every painted frame (no guard read of status/diag
+                // needed, which would pull them into the effect deps).
+                setStatus("running");
+                setDiag(null);
+              } else {
+                xdbg.blankFrames++;
+                if (xdbg.paints === 0) {
+                  setDiag(
+                    "X server is running but produced no display output yet. " +
+                      "This headless X path does not flush client paint to the " +
+                      "framebuffer; the window stays blank until that lands.",
+                  );
+                }
+              }
             }
           }
-        } catch {
-          /* transient (VM busy with a client launch) — retry next tick */
+        } catch (err) {
+          // Surface the failure instead of swallowing it: a launch/exec fault
+          // (e.g. the VM throwing on the X client) would otherwise present as an
+          // unexplained black canvas. Keep retrying next tick (transient busy is
+          // common during a client launch) but record the last error.
+          const msg = err instanceof Error ? err.message : String(err);
+          xdbg.lastErr = msg;
+          if (xdbg.paints === 0) setDiag("error: " + msg);
         }
         rec.end(painted);
         if (running) raf = requestAnimationFrame(() => void tick());
@@ -172,9 +232,11 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
         tabIndex={0}
         aria-label="Live X application window"
       />
-      {status !== "running" && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-gray-400">{status}</p>
+      {(status !== "running" || diag) && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <p className="max-w-md text-center text-sm text-gray-400">
+            {diag ?? status}
+          </p>
         </div>
       )}
     </div>

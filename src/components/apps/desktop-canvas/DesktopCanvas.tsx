@@ -34,8 +34,10 @@ export function DesktopCanvas() {
     let disposed = false;
     let display: { stop: () => void } | null = null;
 
-    setStatus("booting");
     (async () => {
+      // setStatus moved inside the async body so it is not called synchronously
+      // in the effect (react-hooks/set-state-in-effect); still runs before await.
+      setStatus("booting");
       try {
         const sandbox = await ensureSandbox(activeWorkspaceId);
         if (disposed) return;
@@ -76,7 +78,7 @@ export function DesktopCanvas() {
       {status !== "attached" && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="text-sm text-gray-400">
-            {status === "booting" && "Booting in-page sandbox…"}
+            {status === "booting" && "Booting in-page sandbox..."}
             {status === "error" && `Display error: ${message}`}
             {status === "idle" && "Idle"}
           </p>

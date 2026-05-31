@@ -415,7 +415,7 @@ function AboutTab() {
               Next.js
             </PropertyPanel.Row>
             <PropertyPanel.Row label="Runtime">
-              {typeof navigator !== "undefined" ? navigator.userAgent.split(" ").pop() : "—"}
+              {typeof navigator !== "undefined" ? navigator.userAgent.split(" ").pop() : "--"}
             </PropertyPanel.Row>
           </PropertyPanel.Section>
         </PropertyPanel>
@@ -431,18 +431,18 @@ function AboutTab() {
         <PropertyPanel className="rounded-lg border border-gray-alpha-200">
           <PropertyPanel.Section>
             <PropertyPanel.Row label="Platform">
-              {typeof navigator !== "undefined" ? navigator.platform : "—"}
+              {typeof navigator !== "undefined" ? navigator.platform : "--"}
             </PropertyPanel.Row>
             <PropertyPanel.Row label="Language">
-              {typeof navigator !== "undefined" ? navigator.language : "—"}
+              {typeof navigator !== "undefined" ? navigator.language : "--"}
             </PropertyPanel.Row>
             <PropertyPanel.Row label="Cores">
-              {typeof navigator !== "undefined" ? navigator.hardwareConcurrency : "—"}
+              {typeof navigator !== "undefined" ? navigator.hardwareConcurrency : "--"}
             </PropertyPanel.Row>
             <PropertyPanel.Row label="Screen">
               {typeof screen !== "undefined"
                 ? `${screen.width}x${screen.height} @${devicePixelRatio}x`
-                : "—"}
+                : "--"}
             </PropertyPanel.Row>
           </PropertyPanel.Section>
         </PropertyPanel>
@@ -484,13 +484,13 @@ function AccountTab() {
         <PropertyPanel className="rounded-lg border border-gray-alpha-200">
           <PropertyPanel.Section>
             <PropertyPanel.Row label="Email">
-              {user?.email ?? "—"}
+              {user?.email ?? "--"}
             </PropertyPanel.Row>
             <PropertyPanel.Row label="Name">
-              {user?.name ?? "—"}
+              {user?.name ?? "--"}
             </PropertyPanel.Row>
             <PropertyPanel.Row label="User ID" mono>
-              {user?.id ?? "—"}
+              {user?.id ?? "--"}
             </PropertyPanel.Row>
           </PropertyPanel.Section>
         </PropertyPanel>

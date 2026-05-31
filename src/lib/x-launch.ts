@@ -173,7 +173,7 @@ export async function launchXApp(
     }
     // Proven single-call model: run the Xvfb server + the X client CONCURRENTLY
     // in one runConcurrent (slot0 server + slot1 client over the in-process
-    // AF_UNIX layer) — the path proven to connect + paint (X Apps/xdpyinfo,
+    // AF_UNIX layer) -- the path proven to connect + paint (X Apps/xdpyinfo,
     // xsetroot). The separate startXServer/launchXClient persistent split wedged
     // (client never painted) and collided on display :99, so it is retired here.
     // The patched Xvfb publishes its screen framebuffer via 0x5fb every dispatch

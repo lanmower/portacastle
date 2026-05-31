@@ -96,10 +96,10 @@ export function buildServiceUrl(
  * React hook that provides a sandbox service client bound to the active
  * workspace's services domain.
  *
- * - `serviceUrl(path)` — builds a full URL, or `null` when offline
- * - `fetcher` — SWR-compatible GET fetcher
- * - `post(path, body)` — POST mutation helper
- * - `servicesDomain` — raw domain string (for SWR key construction)
+ * - `serviceUrl(path)` -- builds a full URL, or `null` when offline
+ * - `fetcher` -- SWR-compatible GET fetcher
+ * - `post(path, body)` -- POST mutation helper
+ * - `servicesDomain` -- raw domain string (for SWR key construction)
  */
 export function useSandboxServiceClient() {
   const { sandbox } = useActiveSandbox();

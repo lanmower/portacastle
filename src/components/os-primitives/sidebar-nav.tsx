@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 // ---------------------------------------------------------------------------
-// SidebarNav — reusable sidebar navigation for app shells.
+// SidebarNav -- reusable sidebar navigation for app shells.
 //
 // Extracts the repeated sidebar + tab-button pattern used across Settings,
 // AppStore, etc.  Designed to sit inside a SplitPane.Panel.
@@ -49,7 +49,7 @@ function SidebarNavRoot({ children, label, title, className = "" }: SidebarNavPr
 }
 
 // ---------------------------------------------------------------------------
-// SidebarNav.Group — optional section divider with a title
+// SidebarNav.Group -- optional section divider with a title
 // ---------------------------------------------------------------------------
 
 interface SidebarNavGroupProps {
@@ -72,7 +72,7 @@ function SidebarNavGroup({ children, title, className = "" }: SidebarNavGroupPro
 }
 
 // ---------------------------------------------------------------------------
-// SidebarNav.Item — a single navigation button
+// SidebarNav.Item -- a single navigation button
 // ---------------------------------------------------------------------------
 
 interface SidebarNavItemProps {

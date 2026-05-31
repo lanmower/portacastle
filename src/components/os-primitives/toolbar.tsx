@@ -5,7 +5,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 
 // ---------------------------------------------------------------------------
-// Toolbar — horizontal bar of icon buttons, groups, and separators.
+// Toolbar -- horizontal bar of icon buttons, groups, and separators.
 //
 // Usage:
 //   <Toolbar>
@@ -73,7 +73,7 @@ const ToolbarButton = forwardRef<HTMLButtonElement, ToolbarButtonProps>(
 );
 
 // ---------------------------------------------------------------------------
-// Toolbar.Group — groups buttons together with tighter spacing
+// Toolbar.Group -- groups buttons together with tighter spacing
 // ---------------------------------------------------------------------------
 
 function ToolbarGroup({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -91,7 +91,7 @@ function ToolbarSeparator() {
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar.Spacer — pushes subsequent items to the right
+// Toolbar.Spacer -- pushes subsequent items to the right
 // ---------------------------------------------------------------------------
 
 function ToolbarSpacer() {
@@ -99,7 +99,7 @@ function ToolbarSpacer() {
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar.Text — inline text label
+// Toolbar.Text -- inline text label
 // ---------------------------------------------------------------------------
 
 function ToolbarText({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -111,7 +111,7 @@ function ToolbarText({ children, className = "" }: { children: ReactNode; classN
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar.Input — inline input (e.g. address bar)
+// Toolbar.Input -- inline input (e.g. address bar)
 // ---------------------------------------------------------------------------
 
 function ToolbarInput({

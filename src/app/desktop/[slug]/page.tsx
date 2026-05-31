@@ -18,7 +18,7 @@ export default async function WorkspacePage({
 }) {
   const { slug } = await params;
 
-  // Static export (GitHub Pages): no server session — boot the guest desktop
+  // Static export (GitHub Pages): no server session -- boot the guest desktop
   // and let the client resolve the workspace slug from local state.
   if (IS_STATIC_EXPORT) {
     return <DesktopShell user={STATIC_GUEST_USER} targetSlug={slug} />;

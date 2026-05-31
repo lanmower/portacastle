@@ -27,7 +27,7 @@ export function CodeServerApp({ meta: _meta }: { meta?: Record<string, unknown> 
   const open = useCallback(async () => {
     if (!activeWorkspaceId || busy) return;
     setBusy(true);
-    setStatus("opening…");
+    setStatus("opening...");
     try {
       const text = await runExclusive(activeWorkspaceId, async (sb) => {
         try {
@@ -49,7 +49,7 @@ export function CodeServerApp({ meta: _meta }: { meta?: Record<string, unknown> 
   const save = useCallback(async () => {
     if (!activeWorkspaceId || busy) return;
     setBusy(true);
-    setStatus("saving…");
+    setStatus("saving...");
     try {
       await runExclusive(activeWorkspaceId, async (sb) => {
         const dir = path.replace(/\/[^/]*$/, "");

@@ -44,7 +44,7 @@ const STATIC_GUEST: AuthUser = {
 };
 
 export function useUser() {
-  // Static export: no /api/auth/me endpoint — return the synthetic guest and
+  // Static export: no /api/auth/me endpoint -- return the synthetic guest and
   // never fetch (passing null as the SWR key disables the request).
   const { data, error, isLoading } = useSWR<AuthUser>(
     IS_STATIC_EXPORT ? null : SWR_KEYS.user,

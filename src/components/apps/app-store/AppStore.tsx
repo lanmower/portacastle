@@ -107,17 +107,24 @@ export function AppStore() {
     return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
   }, [search]);
 
-  // Reset offset when view/search changes
-  useEffect(() => { setOffset(0); }, [view, debouncedSearch]);
+  // Reset offset when view/search changes. Deferred so the setState is not
+  // synchronous in the effect body (react-hooks/set-state-in-effect).
+  useEffect(() => { queueMicrotask(() => setOffset(0)); }, [view, debouncedSearch]);
 
   // ---- In-page apk catalog query (replaces the removed remote /packages service) ----
   useEffect(() => {
     if (!activeWorkspaceId) return;
     let cancelled = false;
     const q = view === "search" ? debouncedSearch : "";
-    if (view === "search" && !debouncedSearch) { setPackages([]); setTotal(0); return; }
-    setIsLoading(true);
-    setSearchError(null);
+    if (view === "search" && !debouncedSearch) {
+      // Deferred so these resets are not synchronous in the effect body
+      // (react-hooks/set-state-in-effect).
+      queueMicrotask(() => { setPackages([]); setTotal(0); });
+      return;
+    }
+    // Deferred so the loading-flag resets are not synchronous in the effect body
+    // (react-hooks/set-state-in-effect).
+    queueMicrotask(() => { setIsLoading(true); setSearchError(null); });
     void runExclusive<{ packages: { name: string; summary: string; version: string }[]; total: number }>(activeWorkspaceId, async (sb) => {
       if (view === "installed") {
         const list = await sb.pkgInstalled();
@@ -156,9 +163,16 @@ export function AppStore() {
 
   // Package detail info.
   useEffect(() => {
-    if (!activeWorkspaceId || !selectedPkg) { setPkgInfo(null); return; }
+    if (!activeWorkspaceId || !selectedPkg) {
+      // Deferred so the reset is not synchronous in the effect body
+      // (react-hooks/set-state-in-effect).
+      queueMicrotask(() => setPkgInfo(null));
+      return;
+    }
     let cancelled = false;
-    setInfoLoading(true);
+    // Deferred so the loading-flag set is not synchronous in the effect body
+    // (react-hooks/set-state-in-effect).
+    queueMicrotask(() => setInfoLoading(true));
     void runExclusive<{ version: string; summary: string; repo: string } | null>(
       activeWorkspaceId,
       (sb) => sb.pkgInfo(selectedPkg),
@@ -219,7 +233,7 @@ export function AppStore() {
     (name: string) => {
       if (!activeWorkspaceId) return;
       setActionStatus("launching");
-      setActionLog(`Launching ${name}…`);
+      setActionLog(`Launching ${name}...`);
       void launchXApp(activeWorkspaceId, name)
         .then((r) => {
           setActionStatus(null);

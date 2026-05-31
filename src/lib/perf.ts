@@ -3,8 +3,8 @@
  *
  * The render loops (GuiDesktopApp, XWindowCanvas) and the boot path record
  * per-stage timings into a small fixed-size ring exposed on `window.__sc.perf`
- * so a live page.evaluate (browser-witness) can read REAL per-frame numbers —
- * displayPixels ms, blit ms, exec ms, total tick ms, fps, dropped frames —
+ * so a live page.evaluate (browser-witness) can read REAL per-frame numbers --
+ * displayPixels ms, blit ms, exec ms, total tick ms, fps, dropped frames --
  * rather than guessing. This is the prerequisite witness source for every
  * perf-optimization change: measure first, then prove each change moved a
  * number. No external services; pure in-page instrumentation.

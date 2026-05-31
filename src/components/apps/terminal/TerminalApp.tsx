@@ -69,7 +69,7 @@ export function TerminalApp() {
 
         const cached = loadTerminalState(activeWorkspaceId);
         if (cached) t.write(cached);
-        t.write("\r\n\x1b[90m[booting in-page sandbox…]\x1b[0m\r\n");
+        t.write("\r\n\x1b[90m[booting in-page sandbox...]\x1b[0m\r\n");
 
         let sandbox;
         try {

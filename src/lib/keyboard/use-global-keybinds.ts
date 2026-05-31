@@ -20,8 +20,13 @@ export function useGlobalKeybinds() {
     windows: [],
     selectedIndex: 0,
   });
+  // Mirror the switcher state into a ref so the stable keydown handlers can read
+  // the latest value without re-subscribing. Synced in an effect rather than
+  // assigned during render (react-hooks/refs).
   const switcherRef = useRef(switcher);
-  switcherRef.current = switcher;
+  useEffect(() => {
+    switcherRef.current = switcher;
+  }, [switcher]);
 
   const [launcherToggle, setLauncherToggle] = useState(0);
 
@@ -30,7 +35,7 @@ export function useGlobalKeybinds() {
     const workspaceStore = useWorkspaceStore.getState();
 
     switch (id) {
-      // ── Window Cycling ───────────────────────────────────────────
+      // -- Window Cycling -------------------------------------------
       case "window.cycle-next":
       case "window.cycle-prev": {
         const windows = windowStore.getWindows();
@@ -53,7 +58,7 @@ export function useGlobalKeybinds() {
         return;
       }
 
-      // ── Window Management ────────────────────────────────────────
+      // -- Window Management ----------------------------------------
       case "window.close": {
         const top = windowStore.getTopmostWindow();
         if (top) windowStore.closeWindow(top.id);
@@ -89,7 +94,7 @@ export function useGlobalKeybinds() {
         return;
       }
 
-      // ── Workspace Switching ──────────────────────────────────────
+      // -- Workspace Switching --------------------------------------
       default: {
         const wsMatch = id.match(/^workspace\.(\d+)$/);
         if (wsMatch) {
@@ -103,7 +108,7 @@ export function useGlobalKeybinds() {
           return;
         }
 
-        // ── Launcher shortcuts ───────────────────────────────────
+        // -- Launcher shortcuts -----------------------------------
         if (id === "launcher.open") {
           setLauncherToggle((n) => n + 1);
           return;
@@ -121,7 +126,7 @@ export function useGlobalKeybinds() {
           return;
         }
 
-        // ── System ───────────────────────────────────────────────
+        // -- System -----------------------------------------------
         if (id === "system.notification-center") {
           useNotificationStore.getState().toggleCenter();
           return;

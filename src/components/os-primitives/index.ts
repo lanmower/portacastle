@@ -1,4 +1,4 @@
-// OS Primitives — UI building blocks for desktop app chrome.
+// OS Primitives -- UI building blocks for desktop app chrome.
 // Built on top of shadcn/ui components and Geist design tokens.
 //
 // These fill the gap between shadcn's web-focused components and the
