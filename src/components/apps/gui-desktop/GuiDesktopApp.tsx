@@ -5,6 +5,7 @@ import { useActiveSandbox } from "@/stores/workspace-store";
 import { useClientSandboxStore, BOOT_STAGE_LABEL } from "@/stores/client-sandbox-store";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
 import { asset } from "@/lib/static-export";
+import { getPerf } from "@/lib/perf";
 
 /**
  * GUI Desktop app: runs an in-guest framebuffer GUI program (containers/
@@ -123,12 +124,20 @@ export function GuiDesktopApp() {
       // timer racing the VM, and pauses entirely when the tab is backgrounded.
       let inFlight = false;
       let dirty = true; // first frame always renders
-      function requestTick() { dirty = true; if (!inFlight && running) void tick(); }
+      // Live pump-state mirror for browser-witness diagnosis of the re-tick path.
+      const pump = { inFlight: false, dirty: true, running: true, ticks: 0, requestTicks: 0 };
+      (dbg as unknown as { pump: typeof pump }).pump = pump;
+      function requestTick() {
+        dirty = true; pump.dirty = true; pump.requestTicks++;
+        if (!inFlight && running) void tick();
+      }
 
       async function tick() {
         if (inFlight || !running) return;
-        inFlight = true;
-        dirty = false;
+        inFlight = true; pump.inFlight = true; pump.ticks++;
+        dirty = false; pump.dirty = false;
+        const rec = getPerf().begin("gui");
+        let painted = false;
         try {
           await runExclusive(wsId, async (sb) => {
             if (pointer.x >= 0) await sb.pushInput({ type: "motion", x: pointer.x, y: pointer.y });
@@ -138,8 +147,8 @@ export function GuiDesktopApp() {
               dirty = true;
             }
             const argv = [String(win.x), String(win.y), String(win.dragging), String(win.grabx), String(win.graby)];
-            const r = await sb.runCommand("/xappdemo", argv);
-            const stdoutStr = await r.stdout();
+            const r = await rec.stageAsync("exec", () => sb.runCommand("/xappdemo", argv));
+            const stdoutStr = await rec.stageAsync("stdout", () => r.stdout());
             dbg.lastOut = stdoutStr;
             // Guest line: "x y drag gx gy | r g b ! damage". State is left of
             // '!', the damage flag (1=visible change, 0=identical) is right of it.
@@ -152,16 +161,37 @@ export function GuiDesktopApp() {
             // split/map over a one-line string), so it is not the per-frame
             // bottleneck — the blit + runElf dominate; left as-is intentionally.
             const _parse0 = performance.now();
-            const [statePart, damagePart] = stdoutStr.trim().split("!");
-            const out = statePart.split(/[\s|]+/).map(Number);
+            // stdout may carry a shell-prompt prefix ("$ xappdemo\n...") and
+            // blank lines; take the LAST line that actually contains the state
+            // marker '|' so the prompt text never poisons the numeric parse.
+            const stateLine =
+              stdoutStr
+                .split("\n")
+                .map((l) => l.trim())
+                .filter((l) => l.includes("|"))
+                .pop() ?? stdoutStr.trim();
+            const [statePart, damagePart] = stateLine.split("!");
+            const out = statePart.split(/[\s|]+/).filter(Boolean).map(Number);
             dbg.parseMs = performance.now() - _parse0;
             if (out.length >= 5 && Number.isFinite(out[0])) {
               win.x = out[0]; win.y = out[1]; win.dragging = out[2]; win.grabx = out[3]; win.graby = out[4];
             }
-            // damage defaults to 1 (always blit) when the token is absent (older
-            // ELF), so a missing damage signal never freezes the display.
-            const damage = damagePart === undefined ? 1 : Number(damagePart.trim());
-            const view = await sb.displayPixels();
+            // damage defaults to 1 (always blit) when the token is absent OR
+            // empty/non-numeric (older ELF, trailing whitespace) so a missing or
+            // blank damage signal never freezes the display by reading as 0.
+            const damageNum = damagePart === undefined ? NaN : Number(damagePart.trim());
+            const damage = Number.isFinite(damageNum) ? damageNum : 1;
+            // Cheap generation probe before the 1.9MB displayPixels copy: if the
+            // guest didn't re-register the framebuffer (generation unchanged) AND
+            // it isn't the first paint, skip the pixel snapshot entirely — the
+            // displayed frame is already current. displayInfo() reads only the
+            // fb header, not the pixels.
+            const firstPaintProbe = lastGen < 0;
+            const info = await rec.stageAsync("displayInfo", () => sb.displayInfo());
+            const view =
+              info && info.generation === lastGen && !firstPaintProbe
+                ? null
+                : await rec.stageAsync("displayPixels", () => sb.displayPixels());
             // The very first paint (lastGen<0) must always blit so the window
             // appears even when the opening frame reports damage=0; after that,
             // skip the copy on unchanged (damage=0) frames.
@@ -175,10 +205,13 @@ export function GuiDesktopApp() {
               // frame changed OR it's the first paint) -- a damage=0 run after the
               // first paint skips the 1.9MB copy + canvas upload since the
               // displayed frame is already current.
-              frame.data.set(view.pixels);
-              ctx.putImageData(frame, 0, 0);
+              rec.stage("blit", () => {
+                frame.data.set(view.pixels);
+                ctx.putImageData(frame, 0, 0);
+              });
               lastGen = view.generation;
               dbg.blits++;
+              painted = true;
             }
             if (view) dbg.lastGenSeen = view.generation;
             dbg.frames++;
@@ -189,7 +222,8 @@ export function GuiDesktopApp() {
               ? err.message + (err.stack ? "\n" + err.stack.slice(0, 300) : "")
               : (() => { try { return JSON.stringify(err); } catch { return String(err); } })();
         } finally {
-          inFlight = false;
+          rec.end(painted);
+          inFlight = false; pump.inFlight = false;
           // keep animating while dragging (content block animates), else idle.
           // requestAnimationFrame coalesces with the compositor and is paused
           // automatically when the tab is backgrounded (no wasted VM runs).

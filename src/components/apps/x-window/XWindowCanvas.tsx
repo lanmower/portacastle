@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useClientSandboxStore } from "@/stores/client-sandbox-store";
+import { getPerf } from "@/lib/perf";
 
 /**
  * Live X window canvas. Blits the in-page persistent Xvfb framebuffer (published
@@ -91,8 +92,20 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
       // host page-walk over the live Xvfb framebuffer.
       async function tick() {
         if (!running || !sandbox) return;
+        const rec = getPerf().begin("xwindow");
+        let painted = false;
         try {
-          const view = await sandbox.displayPixels();
+          // Cheap generation probe BEFORE the 1.9MB page-walk: displayInfo()
+          // returns the framebuffer generation without copying pixels. On an
+          // idle frame (generation unchanged) we skip displayPixels() entirely,
+          // so a static X window costs ~0 per rAF instead of a full fb copy.
+          const info = await rec.stageAsync("displayInfo", () => sandbox!.displayInfo());
+          if (info && info.generation === lastGen) {
+            rec.end(false);
+            if (running) raf = requestAnimationFrame(() => void tick());
+            return;
+          }
+          const view = await rec.stageAsync("displayPixels", () => sandbox!.displayPixels());
           if (
             view &&
             view.pixels &&
@@ -111,14 +124,19 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
               frame = ctx.createImageData(view.width, view.height);
             }
             if (view.pixels.length === view.width * view.height * 4) {
-              frame.data.set(view.pixels);
-              ctx.putImageData(frame, 0, 0);
+              const f = frame;
+              rec.stage("blit", () => {
+                f.data.set(view.pixels);
+                ctx.putImageData(f, 0, 0);
+              });
               lastGen = view.generation;
+              painted = true;
             }
           }
         } catch {
           /* transient (VM busy with a client launch) — retry next tick */
         }
+        rec.end(painted);
         if (running) raf = requestAnimationFrame(() => void tick());
       }
       void tick();
