@@ -1,0 +1,3 @@
+## Resolved mutable: mut-client-window-paint-postfix
+
+browser-817: gen climbs (25) + hasFbSpy true + fb cross-VM read works, BUT canvas nonzero=0 paints0 for forever xeyes. Diagnosis refined: poll-freeze + cross-VM fb both LIVE and working; remaining gap is ONLY that the forever X client never draws window content into the Xvfb screen pixmap (headless no-Expose/no-damage OR dual-worker scheduler starving client draw). Isolated to client-window-paint-scheduling epic; NOT app-layer, NOT the fb-read path.

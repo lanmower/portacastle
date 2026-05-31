@@ -1,0 +1,3 @@
+## Resolved mutable: mut-xterm-offline
+
+browser-798/800: xterm dblclick -> overlay stuck Installing xterm (apk)... (not bundled, apk-over-CORS = external service, hangs offline, violates no-external-services). FIX: removed xterm from BUILTIN_APPS (desktop-store.ts). browser-801 after reload: launchers=[X Apps,xeyes,xclock,xcalc], hasXterm=false.

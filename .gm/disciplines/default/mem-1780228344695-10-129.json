@@ -1,0 +1,3 @@
+## Resolved mutable: mut-dev-server-freshwasm
+
+curl :3000 307 + wasm 200; hasFbSpy confirmed via browser core probe next dispatch

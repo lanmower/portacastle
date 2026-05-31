@@ -1,0 +1,3 @@
+## Resolved mutable: mut-genfrozen-pollfreeze
+
+browser-817 single xeyes window ws-m2b3vz40: lastGen=25 (CLIMBING, not frozen) ticks3356. Poll-freeze fix 75bafbb IS LIVE in served wasm (gen republished while server idles in poll). Earlier lastGen=1 (browser-784) was the 3-concurrent-window case where scheduler contention starves the server. RESOLVED: gen advances; the all-zero is NOT a frozen-gen problem.

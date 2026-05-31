@@ -116,23 +116,14 @@ const BUILTIN_APPS: DesktopEntry[] = [
     comment: "Scientific calculator",
     onDesktop: true,
   },
-  {
-    id: "xterm",
-    name: "xterm",
-    icon: "/icons/dusk/terminal.svg",
-    exec: "xterm",
-    type: "x11",
-    component: null,
-    categories: ["X11", "System"],
-    comment: "X terminal emulator (apk-installed on first launch)",
-    onDesktop: true,
-  },
-  // xterm is not bundled in x-client-overlay.tar.gz; launchXApp apk-installs it
-  // (and its lib closure: libx11/libxft/fontconfig/freetype/...) on first launch
-  // via the in-page apk layer (Sandbox.pkgInstall -> Alpine repo over a CORS
-  // proxy, extracted into the guest FS). Witnessed installing in ~7s + running as
-  // an X client against the in-page Xvfb. The install is per-session (MEMFS), so
-  // a page reload re-installs on next launch.
+  // xterm is intentionally NOT a dock app. Unlike xeyes/xclock/xcalc it is not
+  // bundled in x-client-overlay.tar.gz, so launchXApp would fall through to the
+  // apk-install path (Sandbox.pkgInstall -> Alpine repo over a CORS proxy). That
+  // reaches an EXTERNAL service, which violates the standing in-page/no-external
+  // constraint, and offline it simply hangs on "Installing xterm (apk)..."
+  // (witnessed browser-798/800). The built-in Terminal app covers the terminal
+  // need entirely in-page, so xterm is dropped from the dock rather than shipped
+  // as a perpetually-installing entry.
 ];
 
 // Base-path the builtin icon paths for the static (GitHub Pages) build. No-op
