@@ -49,10 +49,15 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
 
     let sandbox: Awaited<ReturnType<typeof ensureSandbox>> | null = null;
 
+    // Coalesce pointer-motion: a fast drag fires mousemove hundreds of times a
+    // second, but the X server only needs the LATEST position per frame. Stash
+    // the latest motion here and flush at most one per rAF tick (below), instead
+    // of writing the input ring on every native event.
+    let pendingMotion: { x: number; y: number } | null = null;
+
     function onMove(e: MouseEvent) {
       if (!sandbox) return;
-      const { x, y } = toGuest(e);
-      void sandbox.pushInput({ type: "motion", x, y });
+      pendingMotion = toGuest(e);
     }
     function onDown(e: MouseEvent) {
       if (!sandbox) return;
@@ -95,6 +100,11 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
         const rec = getPerf().begin("xwindow");
         let painted = false;
         try {
+          // Flush the single latest coalesced pointer position for this frame.
+          if (pendingMotion) {
+            const m = pendingMotion; pendingMotion = null;
+            void sandbox.pushInput({ type: "motion", x: m.x, y: m.y });
+          }
           // Cheap generation probe BEFORE the 1.9MB page-walk: displayInfo()
           // returns the framebuffer generation without copying pixels. On an
           // idle frame (generation unchanged) we skip displayPixels() entirely,

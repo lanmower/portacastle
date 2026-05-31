@@ -67,8 +67,10 @@ interface ClientSandboxStore {
 const booting = new Map<string, Promise<Sandbox>>();
 // Per-workspace serialization chain so VM runs never overlap.
 const runChains = new Map<string, Promise<unknown>>();
-// Workspaces whose IDBFS persist-flush listeners are already wired (once each).
-const persistFlushWired = new Set<string>();
+// Workspaces whose IDBFS persist-flush listeners are already wired (once each),
+// with the teardown that clears the interval + removes the window listeners so a
+// disposed sandbox does not leak a 15s timer (and the closures it retains).
+const persistFlushWired = new Map<string, () => void>();
 
 export const useClientSandboxStore = create<ClientSandboxStore>((set, get) => ({
   sandboxes: {},
@@ -121,13 +123,21 @@ export const useClientSandboxStore = create<ClientSandboxStore>((set, get) => ({
       try {
         await sandbox.persistDir("/persist");
         if (!persistFlushWired.has(workspaceId)) {
-          persistFlushWired.add(workspaceId);
           const flush = () => { void sandbox.syncPersist().catch(() => {}); };
           // Flush on tab hide/close + periodically, so writes are durable.
           if (typeof window !== "undefined") {
             window.addEventListener("beforeunload", flush);
             window.addEventListener("pagehide", flush);
-            setInterval(flush, 15000);
+            const timer = setInterval(flush, 15000);
+            // Teardown: clear the interval + drop the listeners so disposing the
+            // sandbox does not leak a timer (which would also retain `sandbox`).
+            persistFlushWired.set(workspaceId, () => {
+              clearInterval(timer);
+              window.removeEventListener("beforeunload", flush);
+              window.removeEventListener("pagehide", flush);
+            });
+          } else {
+            persistFlushWired.set(workspaceId, () => {});
           }
         }
       } catch {
@@ -159,6 +169,10 @@ export const useClientSandboxStore = create<ClientSandboxStore>((set, get) => ({
   },
 
   async disposeSandbox(workspaceId) {
+    // Tear down the persist-flush interval + window listeners for this workspace
+    // so a disposed sandbox leaves no live 15s timer holding the VM alive.
+    const teardown = persistFlushWired.get(workspaceId);
+    if (teardown) { teardown(); persistFlushWired.delete(workspaceId); }
     const sandbox = get().sandboxes[workspaceId];
     if (sandbox) {
       try {
