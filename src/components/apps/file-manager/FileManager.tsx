@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useActiveSandbox } from "@/stores/workspace-store";
 import { useWindowStore } from "@/stores/window-store";
-import { useXpraStore } from "@/stores/xpra-store";
+import { launchXApp } from "@/lib/x-launch";
 import { useSandboxFs, useSandboxFsMutations } from "@/lib/hooks/use-sandbox-fs";
 import { NoWorkspacePlaceholder } from "@/components/apps/no-workspace-placeholder";
 import { Toolbar, StatusBar, ListView, SplitPane, EmptyState } from "@/components/os-primitives";
@@ -53,7 +53,7 @@ function getFileIcon(name: string, isDirectory: boolean) {
   return FileText;
 }
 
-function getOpenAction(name: string): "code" | "xpra-open" | "none" {
+function getOpenAction(name: string): "code" | "x-open" | "none" {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   if ([
     "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rb", "go", "rs", "c", "cpp", "h", "java",
@@ -62,8 +62,8 @@ function getOpenAction(name: string): "code" | "xpra-open" | "none" {
     "log", "env", "gitignore", "dockerignore", "dockerfile", "makefile",
     "lock", "prisma", "graphql", "sql", "csv",
   ].includes(ext) || name.startsWith(".")) return "code";
-  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "pdf", "ps", "eps"].includes(ext)) return "xpra-open";
-  if (ext === "desktop") return "xpra-open";
+  if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "pdf", "ps", "eps"].includes(ext)) return "x-open";
+  if (ext === "desktop") return "x-open";
   return "code";
 }
 
@@ -113,7 +113,6 @@ export function FileManager() {
   const [mutating, setMutating] = useState<string | null>(null);
   const { activeWorkspaceId } = useActiveSandbox();
   const openWindow = useWindowStore((s) => s.openWindow);
-  const launchApp = useXpraStore((s) => s.launchApp);
   const { writeFile, mkdir, rename, remove } = useSandboxFsMutations(activeWorkspaceId);
   const {
     entries,
@@ -188,11 +187,17 @@ export function FileManager() {
           height: 600,
           meta: { filePath: entry.path },
         });
-      } else if (action === "xpra-open") {
-        launchApp(`xdg-open '${entry.path.replace(/'/g, "'\\''")}'`);
+      } else if (action === "x-open" && activeWorkspaceId) {
+        // Open via the in-page X stack (xdg-open under the blink Xvfb), the
+        // proven launchXApp path that replaced the removed xpra launcher.
+        void launchXApp(
+          activeWorkspaceId,
+          "xdg-open",
+          [entry.path],
+        ).catch(() => {});
       }
     },
-    [navigateTo, openWindow, launchApp],
+    [navigateTo, openWindow, activeWorkspaceId],
   );
 
   const selectedEntry = useMemo(

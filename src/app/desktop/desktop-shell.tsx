@@ -8,7 +8,6 @@ import { Desktop } from "@/components/desktop/Desktop";
 import { DesktopBackground } from "@/components/desktop/DesktopBackground";
 import { WindowRenderer } from "@/components/desktop/WindowRenderer";
 import { Taskbar } from "@/components/taskbar/Taskbar";
-import { XpraConnector } from "@/components/apps/xpra-window/XpraConnector";
 import { NotificationToasts } from "@/components/notifications/NotificationToasts";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { useSyncSandboxTheme } from "@/lib/hooks/use-sync-sandbox-theme";
@@ -422,7 +421,6 @@ export function DesktopShell({ user, targetSlug }: DesktopShellProps) {
   return (
     <div className="h-screen w-screen overflow-hidden">
       <DesktopBackground />
-      <XpraConnector />
       <Desktop />
       <WindowRenderer />
       <Taskbar launcherToggle={launcherToggle} />

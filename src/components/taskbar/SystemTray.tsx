@@ -11,7 +11,6 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { useNotificationStore } from "@/stores/notification-store";
-import { useXpraStore } from "@/stores/xpra-store";
 
 
 const THEME_OPTIONS = [
@@ -62,7 +61,6 @@ export function SystemTray() {
   const unreadCount = useNotificationStore((s) => s.unreadCount);
   const toggleCenter = useNotificationStore((s) => s.toggleCenter);
   const trayIcons = useNotificationStore((s) => s.trayIcons);
-  const bellFlash = useXpraStore((s) => s.bellFlash);
 
   useEffect(() => {
     const update = () => {
@@ -119,9 +117,7 @@ export function SystemTray() {
         desktopOnly
       >
         <button
-          className={`relative flex h-7 w-7 items-center justify-center rounded-md text-gray-900 transition-colors hover:bg-gray-alpha-200 hover:text-gray-1000 ${
-            bellFlash ? "bg-amber-100 text-amber-900" : ""
-          }`}
+          className="relative flex h-7 w-7 items-center justify-center rounded-md text-gray-900 transition-colors hover:bg-gray-alpha-200 hover:text-gray-1000"
           onClick={toggleCenter}
           aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
         >

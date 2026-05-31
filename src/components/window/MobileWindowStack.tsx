@@ -1,57 +1,29 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import type { WindowState } from "@/types/window";
 import { useWindowStore } from "@/stores/window-store";
 import { X, ChevronDown, ArrowUpDown, Maximize2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { APP_COMPONENTS } from "@/components/apps/app-registry";
 import { AppIcon } from "@/components/app-icon";
-import { XpraWindowCanvas } from "@/components/apps/xpra-window/XpraWindow";
-import { useXpraStore } from "@/stores/xpra-store";
+import { XWindowCanvas } from "@/components/apps/x-window/XWindowCanvas";
+import { useActiveSandbox } from "@/stores/workspace-store";
 import { useVisualViewport } from "@/lib/hooks/use-visual-viewport";
 import { TASKBAR_HEIGHT } from "@/lib/constants";
-import { useIsTouchDevice } from "@/lib/hooks/use-is-touch-device";
-import { XpraMobileToolbar } from "@/components/apps/xpra-window/XpraMobileToolbar";
 
 function AppContent({ appId, meta }: { appId: string; meta?: Record<string, unknown> }) {
+  const { activeWorkspaceId } = useActiveSandbox();
   const AppComponent = APP_COMPONENTS[appId];
   if (AppComponent) return <AppComponent meta={meta} />;
 
-  if (appId.startsWith("xpra:")) {
-    const wid = parseInt(appId.split(":")[1], 10);
-    return <XpraWindowMobile wid={wid} />;
+  // Live in-page X11 window (appId "x11:<command>") — same blit surface as the
+  // desktop WindowRenderer; the client was launched by use-launch-app.
+  if (appId.startsWith("x11:") && activeWorkspaceId) {
+    return <XWindowCanvas workspaceId={activeWorkspaceId} />;
   }
 
-  return <X11Placeholder command={appId} />;
-}
-
-function XpraWindowMobile({ wid }: { wid: number }) {
-  const win = useXpraStore((s) => s.windows.get(wid));
-  const focusedWid = useXpraStore((s) => s.focusedWid);
-  if (!win) return <div className="flex h-full items-center justify-center text-neutral-500 text-sm">Window closed</div>;
-  return <XpraWindowCanvas win={win} isFocused={focusedWid === wid} />;
-}
-
-function X11Placeholder({ command }: { command: string }) {
-  const launchApp = useXpraStore((s) => s.launchApp);
-  const connected = useXpraStore((s) => s.connected);
-  const launchedRef = useRef(false);
-
-  useEffect(() => {
-    if (connected && !launchedRef.current) {
-      launchedRef.current = true;
-      launchApp(command);
-    }
-  }, [connected, command, launchApp]);
-
-  return <div className="flex h-full items-center justify-center text-neutral-500 text-sm">Launching {command}...</div>;
-}
-
-function getXpraWid(appId: string): number | null {
-  if (!appId.startsWith("xpra:")) return null;
-  const wid = parseInt(appId.split(":")[1], 10);
-  return Number.isFinite(wid) ? wid : null;
+  return <div className="flex h-full items-center justify-center text-neutral-500 text-sm">No view for {appId}</div>;
 }
 
 function PaneHeader({
@@ -67,9 +39,6 @@ function PaneHeader({
   onSplit: () => void;
   onUnsplit: () => void;
 }) {
-  const isTouch = useIsTouchDevice();
-  const xpraWid = getXpraWid(win.appId);
-
   return (
     <div className="flex shrink-0 flex-col border-b border-gray-alpha-400 bg-background-200">
       <div className="flex h-11 items-center gap-2 px-3">
@@ -94,11 +63,6 @@ function PaneHeader({
           <X />
         </button>
       </div>
-      {isTouch && xpraWid !== null && (
-        <div className="flex h-9 items-center border-t border-gray-alpha-200 px-2">
-          <XpraMobileToolbar wid={xpraWid} />
-        </div>
-      )}
     </div>
   );
 }

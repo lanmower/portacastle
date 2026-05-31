@@ -2,7 +2,6 @@
 
 import type { NotificationUrgency } from "@/stores/notification-store";
 import { useNotificationStore } from "@/stores/notification-store";
-import { useXpraStore } from "@/stores/xpra-store";
 import { X } from "lucide-react";
 
 const URGENCY_BORDER: Record<NotificationUrgency, string> = {
@@ -14,7 +13,6 @@ const URGENCY_BORDER: Record<NotificationUrgency, string> = {
 export function NotificationToasts() {
   const notifications = useNotificationStore((s) => s.notifications);
   const dismissNotification = useNotificationStore((s) => s.dismissNotification);
-  const client = useXpraStore((s) => s.client);
 
   if (notifications.length === 0) return null;
 
@@ -54,7 +52,6 @@ export function NotificationToasts() {
             className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-gray-800 transition-colors hover:bg-gray-alpha-200 hover:text-gray-1000"
             onClick={() => {
               dismissNotification(notif.id);
-              client?.sendNotificationClose(notif.id);
             }}
             aria-label="Dismiss notification"
           >
