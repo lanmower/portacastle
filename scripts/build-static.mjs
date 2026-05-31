@@ -56,6 +56,13 @@ process.on("SIGTERM", () => { restore(); process.exit(1); });
 let code = 0;
 try {
   stash();
+  // Drop any prior .next BEFORE building. Next's typed-routes typegen writes
+  // .next/dev/types/validator.ts listing every route; a validator left over
+  // from a dev session (or a prior build) still references /api + /admin, which
+  // we just renamed away, so `next build`'s typecheck fails with
+  // "Type '\"/admin\"' is not assignable to type '\"/\"'". Removing .next forces
+  // typegen to regenerate against the excluded tree.
+  rmSync(join(ROOT, ".next"), { recursive: true, force: true });
   // Resolve the local next bin (this script may run outside an npm-script PATH).
   const nextBin = join(ROOT, "node_modules", ".bin", process.platform === "win32" ? "next.cmd" : "next");
   const cmd = existsSync(nextBin) ? `"${nextBin}" build` : "npx --no-install next build";
