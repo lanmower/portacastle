@@ -76,8 +76,13 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
       lastGen: -1,
       lastErr: null as string | null,
     };
-    (window as unknown as { __sc?: Record<string, unknown> }).__sc ??= {};
-    (window as unknown as { __sc: Record<string, unknown> }).__sc.xwindow = xdbg;
+    // Key the live-debug mirror per workspace so multiple open X windows do not
+    // clobber each other's counters; .xwindow stays as a convenience pointer to
+    // the most-recently-mounted one.
+    const sc = ((window as unknown as { __sc?: Record<string, unknown> }).__sc ??= {});
+    const byWs = ((sc.xwindowByWorkspace ??= {}) as Record<string, unknown>);
+    byWs[workspaceId] = xdbg;
+    sc.xwindow = xdbg;
 
     // Coalesce pointer-motion: a fast drag fires mousemove hundreds of times a
     // second, but the X server only needs the LATEST position per frame. Stash

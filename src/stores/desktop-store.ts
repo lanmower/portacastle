@@ -2,92 +2,6 @@ import { create } from "zustand";
 import type { DesktopEntry } from "@/types/desktop-entry";
 import { asset } from "@/lib/static-export";
 
-/**
- * Map of app name patterns (lowercase) to Dusk icon SVG filenames.
- * Used to override Linux icon theme icons with consistent Dusk icons
- * for well-known applications installed via X11/sandbox.
- * Icons from https://github.com/pacocoursey/Dusk
- */
-const DUSK_ICON_MAP: Record<string, string> = {
-  // Browsers
-  firefox: "firefox",
-  "google chrome": "chrome",
-  chrome: "chrome",
-  chromium: "chrome",
-  brave: "brave",
-  "brave browser": "brave",
-  safari: "safari",
-  vivaldi: "vivaldi",
-  // Communication
-  discord: "discord",
-  slack: "slack",
-  telegram: "telegram",
-  "telegram desktop": "telegram",
-  whatsapp: "whatsapp",
-  skype: "skype",
-  zoom: "zoom",
-  "microsoft teams": "teams",
-  teams: "teams",
-  "facebook messenger": "messenger",
-  messenger: "messenger",
-  // Media
-  spotify: "spotify",
-  vlc: "vlc",
-  "vlc media player": "vlc",
-  obs: "obs",
-  "obs studio": "obs",
-  itunes: "itunes",
-  // Dev tools
-  "visual studio code": "vscode",
-  "code - oss": "vscode",
-  intellij: "intellij",
-  "intellij idea": "intellij",
-  atom: "atom",
-  iterm2: "iterm2",
-  iterm: "iterm2",
-  hyper: "hyper",
-  "github desktop": "github_desktop",
-  postman: "postman",
-  "mongodb compass": "mongodb",
-  "sequel pro": "sequel_pro",
-  tableplus: "tableplus",
-  // Graphics / Design
-  gimp: "gimp",
-  "gnu image manipulation program": "gimp",
-  figma: "figma",
-  sketch: "sketch",
-  framer: "framer",
-  // Productivity
-  notion: "notion",
-  todoist: "todoist",
-  trello: "trello",
-  notes: "notes",
-  reminders: "reminders",
-  calendar: "calendar",
-  mail: "mail",
-  // Gaming
-  steam: "steam",
-  // System / Utilities
-  "system monitor": "activity_monitor",
-  "text editor": "pages",
-  "image viewer": "preview",
-  "document viewer": "notes",
-  // X11 utilities
-  xeyes: "xeyes",
-  // Other
-  calculator: "calculator",
-  photos: "photos",
-  dropbox: "dropbox",
-  electron: "electron",
-};
-
-function getDuskIcon(appName: string): string | null {
-  const key = appName.toLowerCase();
-  const match = DUSK_ICON_MAP[key];
-  if (match) return asset(`/icons/dusk/${match}.svg`);
-  return null;
-}
-
 const BUILTIN_APPS: DesktopEntry[] = [
   {
     id: "terminal",
@@ -183,7 +97,7 @@ const BUILTIN_APPS: DesktopEntry[] = [
   {
     id: "xclock",
     name: "xclock",
-    icon: "/icons/dusk/calculator.svg",
+    icon: "/icons/dusk/calendar.svg",
     exec: "xclock",
     type: "x11",
     component: null,
@@ -202,17 +116,11 @@ const BUILTIN_APPS: DesktopEntry[] = [
     comment: "Scientific calculator",
     onDesktop: true,
   },
-  {
-    id: "xterm",
-    name: "xterm",
-    icon: "/icons/dusk/terminal.svg",
-    exec: "xterm",
-    type: "x11",
-    component: null,
-    categories: ["X11", "System"],
-    comment: "X terminal emulator",
-    onDesktop: true,
-  },
+  // NOTE: xterm is intentionally NOT a dock entry. It is not bundled in
+  // x-client-overlay.tar.gz, so launching it would require an apk install at
+  // runtime, which cannot complete in-page/offline (it just hangs). The builtin
+  // Terminal app covers the terminal use case in-page. Re-add xterm here only
+  // once it (and its lib closure) ship in the offline overlay.
 ];
 
 // Base-path the builtin icon paths for the static (GitHub Pages) build. No-op
