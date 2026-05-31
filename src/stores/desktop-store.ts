@@ -116,11 +116,23 @@ const BUILTIN_APPS: DesktopEntry[] = [
     comment: "Scientific calculator",
     onDesktop: true,
   },
-  // NOTE: xterm is intentionally NOT a dock entry. It is not bundled in
-  // x-client-overlay.tar.gz, so launching it would require an apk install at
-  // runtime, which cannot complete in-page/offline (it just hangs). The builtin
-  // Terminal app covers the terminal use case in-page. Re-add xterm here only
-  // once it (and its lib closure) ship in the offline overlay.
+  {
+    id: "xterm",
+    name: "xterm",
+    icon: "/icons/dusk/terminal.svg",
+    exec: "xterm",
+    type: "x11",
+    component: null,
+    categories: ["X11", "System"],
+    comment: "X terminal emulator (apk-installed on first launch)",
+    onDesktop: true,
+  },
+  // xterm is not bundled in x-client-overlay.tar.gz; launchXApp apk-installs it
+  // (and its lib closure: libx11/libxft/fontconfig/freetype/...) on first launch
+  // via the in-page apk layer (Sandbox.pkgInstall -> Alpine repo over a CORS
+  // proxy, extracted into the guest FS). Witnessed installing in ~7s + running as
+  // an X client against the in-page Xvfb. The install is per-session (MEMFS), so
+  // a page reload re-installs on next launch.
 ];
 
 // Base-path the builtin icon paths for the static (GitHub Pages) build. No-op

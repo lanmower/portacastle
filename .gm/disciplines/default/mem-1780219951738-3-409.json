@@ -1,0 +1,3 @@
+## Resolved mutable: mut-apk-run-installed
+
+browser-457: launchXApp(ws, xterm) on the apk-installed xterm -> binPath /usr/bin/xterm found on disk, runConcurrent launched (Xvfb+xterm) with no missing-binary error (status running = forever X client until 90s timeout, expected). The installed binary + its dep closure (libx11/libxft/fontconfig/freetype, browser-452) execute as an X client against Xvfb in-page.

@@ -44,6 +44,22 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
   // a silent black rectangle the user can't interpret.
   const [status, setStatus] = useState("connecting");
   const [diag, setDiag] = useState<string | null>(null);
+  // apk install status published by launchXApp (per workspace) while a
+  // not-yet-installed client is being apk-installed before its X run, so the
+  // window shows "Installing <pkg>..." instead of a silent connecting overlay.
+  const [installStatus, setInstallStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    const read = () => {
+      const byWs = (window as unknown as { __sc?: { xinstallByWorkspace?: Record<string, string | null> } })
+        .__sc?.xinstallByWorkspace;
+      setInstallStatus(byWs?.[workspaceId] ?? null);
+    };
+    read();
+    const id = window.setInterval(read, 500);
+    return () => window.clearInterval(id);
+  }, [workspaceId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -237,10 +253,10 @@ export function XWindowCanvas({ workspaceId }: { workspaceId: string }) {
         tabIndex={0}
         aria-label="Live X application window"
       />
-      {(status !== "running" || diag) && (
+      {(installStatus || status !== "running" || diag) && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
           <p className="max-w-md text-center text-sm text-gray-400">
-            {diag ?? status}
+            {installStatus ?? diag ?? status}
           </p>
         </div>
       )}

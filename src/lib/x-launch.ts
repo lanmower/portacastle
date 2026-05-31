@@ -159,18 +159,63 @@ export async function launchXApp(
     w.__sc.launchXApp = launchXApp;
     w.__sc.clientSandbox = useClientSandboxStore;
   }
-  return runExclusive(workspaceId, async (sb) => {
-    await ensureXStack(sb);
-    const path = command.startsWith("/") ? command : `/usr/bin/${command}`;
-    // Auto-install via apk if the binary is not present in the guest FS (so a
-    // dock entry for a not-yet-installed app installs-then-launches).
-    const fs = liveFs(sb);
-    let present = false;
-    try { fs?.stat(path); present = true; } catch { present = false; }
-    if (!present && !command.startsWith("/")) {
-      const apkSb = sb as { pkgInstall?: (n: string) => Promise<unknown> };
-      if (apkSb.pkgInstall) { try { await apkSb.pkgInstall(command); } catch { /* fall through; run may still fail */ } }
+  const ensureSandbox = useClientSandboxStore.getState().ensureSandbox;
+  const path = command.startsWith("/") ? command : `/usr/bin/${command}`;
+
+  // Auto-install via apk if the binary is not present in the guest FS (so a dock
+  // entry for a not-yet-installed app installs-then-launches). This runs OUTSIDE
+  // runExclusive: pkgInstall is host-orchestrated (CORS-proxy fetch + extract into
+  // the guest MEMFS) and needs no VM exclusivity. Holding the per-workspace VM
+  // lock during the install would serialize it behind any in-flight X run (a
+  // forever client like xeyes holds the lock for its whole overallTimeout), which
+  // makes a perfectly healthy ~4s install look like a multi-minute hang. The lock
+  // is acquired only for the runConcurrent below, which is the part that needs it.
+  // Publish a per-workspace install-status string the X window overlay reads, so
+  // a not-yet-installed launch shows "Installing <pkg>..." (or a precise error)
+  // instead of a silent connecting/black window while the apk fetch runs.
+  const setInstallStatus = (msg: string | null) => {
+    if (typeof window === "undefined") return;
+    const w = window as unknown as { __sc?: Record<string, unknown> };
+    w.__sc = w.__sc || {};
+    const byWs = ((w.__sc.xinstallByWorkspace ??= {}) as Record<string, string | null>);
+    byWs[workspaceId] = msg;
+  };
+
+  const sb = await ensureSandbox(workspaceId);
+  await ensureXStack(sb);
+  const fs = liveFs(sb);
+  let present = false;
+  try { fs?.stat(path); present = true; } catch { present = false; }
+  if (!present && !command.startsWith("/")) {
+    const apkSb = sb as { pkgInstall?: (n: string) => Promise<unknown> };
+    if (apkSb.pkgInstall) {
+      setInstallStatus(`Installing ${command} (apk)...`);
+      try {
+        await apkSb.pkgInstall(command);
+      } catch (err) {
+        // Install genuinely failed (package not found, or every CORS proxy
+        // unreachable). Surface it precisely instead of falling through to a
+        // runConcurrent that execs a still-missing binary and reports a confusing
+        // generic client failure.
+        const msg = err instanceof Error ? err.message : String(err);
+        setInstallStatus(`apk install failed: ${msg}`);
+        return { exitCode: "apk-install-failed", stdout: "", stderr: msg, timedOut: false };
+      }
+      // Re-check presence after the install; a resolved-but-empty install (e.g. a
+      // metapackage providing no binary at this path) is also a clear failure.
+      try { fs?.stat(path); present = true; } catch { present = false; }
+      if (!present) {
+        const msg = `apk installed '${command}' but ${path} is not present`;
+        setInstallStatus(msg);
+        return { exitCode: "apk-install-failed", stdout: "", stderr: msg, timedOut: false };
+      }
+      // Installed + present: clear the status so the overlay returns to the
+      // normal connecting/running display for the run that follows.
+      setInstallStatus(null);
     }
+  }
+
+  return runExclusive(workspaceId, async () => {
     // Proven single-call model: run the Xvfb server + the X client CONCURRENTLY
     // in one runConcurrent (slot0 server + slot1 client over the in-process
     // AF_UNIX layer) -- the path proven to connect + paint (X Apps/xdpyinfo,
