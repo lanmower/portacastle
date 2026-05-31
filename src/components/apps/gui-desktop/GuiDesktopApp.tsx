@@ -39,6 +39,15 @@ export function GuiDesktopApp() {
   );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [status, setStatus] = useState("idle");
+  // True once at least one guest frame has actually blitted pixels to the
+  // canvas. Until then a "running" GUI with no framebuffer output would be an
+  // uninterpretable black rectangle, so we surface a diagnostic overlay instead
+  // (mirrors XWindowCanvas's never-silent-black invariant).
+  const [hasPainted, setHasPainted] = useState(false);
+  // Set when the pump has run several frames without ever producing a blit:
+  // the ELF executes but no pixels reach the framebuffer (the documented
+  // in-guest fb path that does not flush paint), so the canvas stays black.
+  const [noOutput, setNoOutput] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -213,9 +222,17 @@ export function GuiDesktopApp() {
               lastGen = view.generation;
               dbg.blits++;
               painted = true;
+              // First real blit: clear any diagnostic and mark painted. setState
+              // bails on unchanged values, so calling every blit is cheap.
+              setHasPainted(true);
+              setNoOutput(false);
             }
             if (view) dbg.lastGenSeen = view.generation;
             dbg.frames++;
+            // Several frames executed with zero blits => the guest ran but never
+            // flushed pixels to the framebuffer. Surface that precisely instead
+            // of leaving a mute black canvas.
+            if (dbg.blits === 0 && dbg.frames >= 3) setNoOutput(true);
           });
         } catch (err) {
           dbg.lastErr =
@@ -258,14 +275,23 @@ export function GuiDesktopApp() {
         tabIndex={0}
         aria-label="In-guest GUI desktop"
       />
-      {status !== "running" && (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-gray-400" data-boot-stage={bootStage ?? ""}>
+      {(status !== "running" || !hasPainted) && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+          <p
+            className="max-w-md text-center text-sm text-gray-400"
+            data-boot-stage={bootStage ?? ""}
+          >
             {status === "booting"
               ? bootStage
                 ? BOOT_STAGE_LABEL[bootStage]
                 : "Booting in-page sandbox..."
-              : status}
+              : status !== "running"
+                ? status
+                : noOutput
+                  ? "GUI is running but produced no framebuffer output yet. " +
+                    "The in-guest program executes but no pixels have reached " +
+                    "the framebuffer; the canvas stays blank until that lands."
+                  : "Starting GUI..."}
           </p>
         </div>
       )}

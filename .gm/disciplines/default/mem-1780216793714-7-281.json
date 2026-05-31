@@ -1,0 +1,3 @@
+## Resolved mutable: mut-xapps-display
+
+browser-357: hasDump=true, dump excerpt shows X.Org 21.1.16 :99 client exit 0. Verdict: RENDERS xdpyinfo text dump (works). NOTE: requires no persistent X11 client holding the workspace VM lock (see reval-xapps-vs-persistent-x11-contention).
