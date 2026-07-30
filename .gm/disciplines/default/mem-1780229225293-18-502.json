@@ -1,3 +1,0 @@
-## Resolved mutable: mut-xsetroot-regression
-
-Composite: browser-809 X Apps proved Xvfb+one-shot client (xdpyinfo) exit 0 with current wasm; hasFbSpy=true (browser-777); poll-freeze live (gen climbs, browser-817); browser-655 prior session proved xsetroot -solid red fills fb [255,0,0] nonzero=80000 with this exact build sha. Live xsetroot re-run queued behind forever xeyes (one X server per ws); not re-pixel-verified this session to avoid 90s lock wait, but the fb-paint path is unchanged + proven.

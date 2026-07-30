@@ -1,3 +1,0 @@
-## Resolved mutable: xorg-server-infeasible-under-wasm32-blink
-
-webix/xstack-probe.mjs run output: xvfb@21.1.16 installed (60 pkgs), /usr/bin/Xvfb in rootfs, runElf -> __syscall_mprotect unsupported + Cannot enlarge memory limit 2147483648 -> exit 250. build-blink.yml:70 MAXIMUM_MEMORY=2147483648.

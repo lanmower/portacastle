@@ -1,3 +1,0 @@
-## Resolved mutable: mut-gui-display
-
-browser-366: GUI canvas 4782 nonzero px, gradient color [20,30,60], frames1 blits1 lastErr=null. Verdict: RENDERS content frame (xappdemo gradient). VM exec fault gone this session.

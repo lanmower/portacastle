@@ -1,7 +1,0 @@
-./src/app/api/auth/vercel/route.ts:5:10 getBaseUrl
-function getBaseUrl(): string {
-  if (process.env.BETTER_AUTH_URL) return process.env.BETTER_AUTH_URL;
-  if (process.env.VERCEL_URL)
-    return "https://sandcastle-os.vercel.app";
-  return "http://localhost:3000";
-}

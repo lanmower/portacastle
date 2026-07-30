@@ -1,3 +1,0 @@
-## Resolved mutable: blink-threads-feasible
-
-PARTIAL/build-pending: configure offers --enable-threads (configure:357) and fork has branches fix_threadsbug/threads_tlb_bug indicating known-and-worked threads issues. Threads code present (DISABLE_THREADS gated by --disable-all configure:314). Full empirical confirmation deferred to build-run (prove-fb-pipeline). Resolving as feasible-by-code-presence; build will confirm. Note: emscripten -pthread requires SharedArrayBuffer + COOP/COEP.

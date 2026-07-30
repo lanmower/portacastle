@@ -1,3 +1,0 @@
-## Resolved mutable: fb-mmap-vs-fixed-region
-
-blinkenlib.c:479-481 EMSCRIPTEN_KEEPALIVE u8* blinkenlib_spy_address(u64 vaddr){return SpyAddress(m,vaddr);} returns host pointer into guest virtual memory. Already used internally blinkenlib.c:181-182. Decision: guest mmaps a framebuffer and exposes its vaddr; host calls spy_address to get zero-copy host view. No custom device needed.

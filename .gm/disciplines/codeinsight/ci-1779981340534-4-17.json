@@ -1,5 +1,0 @@
-./src/app/api/auth/logout/route.ts:4:7 POST
-async function POST() {
-  await destroySession();
-  return NextResponse.json({ ok: true });
-}

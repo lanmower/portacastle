@@ -1,3 +1,0 @@
-## Resolved mutable: mut-apk-live-install
-
-browser-452 session6 ws-qh5jfvaa: sb.pkgInstall(figlet) DONE in 3661ms -> name=figlet v2.2.5-r3, 66 files, url=alpine v3.21 community figlet-2.2.5-r3.apk (real repo via codetabs CORS proxy, 487KB APKINDEX fetched in 2.4s browser-450), extracted to guest FS + recorded. pkgInstalled() lists 30 pkgs incl full xterm dep closure (libx11/libxcb/libxft/fontconfig/freetype/libxaw/...). LIVE in-page apk install WORKS.

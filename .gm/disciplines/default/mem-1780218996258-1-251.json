@@ -1,3 +1,0 @@
-## Resolved mutable: mut-apk-import-resolves
-
-browser-439: sb.pkgInstalled() returned [] with importErr=null -> import(webix/alpine-apk) resolved + createApk built in the live sandcastle dev bundle (webix transitive via portabox). The apk layer loads.

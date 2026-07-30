@@ -1,3 +1,0 @@
-## Resolved mutable: mut-base-rootfs
-
-browser-439 session6 ws-qh5jfvaa guest FS probe: /lib /bin /usr/bin /lib/ld-musl-x86_64.so.1 /bin/busybox /etc/apk /lib/apk/db/installed ALL present=true. Alpine minirootfs (musl+busybox) IS mounted -> apk-installed binaries have a working base.

@@ -1,3 +1,0 @@
-## Resolved mutable: mut-1780208685397
-
-browser session 71 dispatch 173+174+175 on localhost:3000 ws-pdasj8yx: (173) xeyes canvas getImageData 90000px sampled nonzero=0 maxv=0. (174) live sandbox displayInfo gen1=11 gen2=11 (frozen 800ms); displayPixels 800x600 gen=11 nonzero=0 len=1920000 -> all-zero published Xvfb fb = EXTERNAL frontier (blink dual-worker wedge + headless no-paint-flush, lanmower/blink+webix CI not this workspace). (175) GUI xappdemo: __sc.gui frames=1 blits=1 lastGenSeen=11 lastErr=null lastOut=newline+"$ xappdemo"+newline (NO x-y-drag|rgb!damage state line) canvas nonzero=0 -> ELF exec returns shell prompt, guest not painting. REACHABLE: black-state UX + error surface; xappdemo stale-asset/exec regression to investigate as the non-black fallback.

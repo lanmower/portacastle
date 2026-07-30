@@ -1,3 +1,0 @@
-## Resolved mutable: pipe-is-build-flag
-
-/tmp/blinkfork/blink/syscall.c:5281 static int SysPipe(struct Machine*,i64); registered syscall.c:5642 SYSCALL(1,0x016,'pipe',SysPipe) and :5644 pipe2. configure:311-317 --disable-all sets DISABLE_NONPOSIX/THREADS/SOCKETS/FORK. configure also offers --enable-threads/--enable-jit/--enable-fork. Conclusion: pipe EBADF is the --disable-all preset, fixable via build flags not C.

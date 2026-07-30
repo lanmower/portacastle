@@ -1,3 +1,0 @@
-## Resolved mutable: mut-xvfb-depth
-
-x-launch.ts:239 Xvfb -screen 0 800x600x16; browser-592 fbInfo stride=1600 width=800 bppRatio=2=16bpp RGB565; blink-core.js:231 bpp==2 branch expands to RGBA len 1920000 bpp:4. Depth/expansion CORRECT, not the bug.

@@ -1,3 +1,0 @@
-## Resolved mutable: mut-dock-xterm-e2e
-
-browser-509/510/511 session11 ws-xbo40tas: dock xterm dblclick -> overlay Installing xterm (apk)... (browser-510 xinstall populated) -> install completes (browser-511 xinstall=null, overlay cleared) -> xterm runs: XWindowCanvas lastGen=23 (Xvfb fb generation advancing = server live + xterm connected), lastErr=null, paints0/blankFrames1 (all-zero fb) -> diagnostic overlay X server is running but produced no display output yet... Full dock-driven install-and-run flow works end to end; window verdict = diagnostic overlay (never silent black), pixels gated by external fb frontier.

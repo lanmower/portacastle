@@ -1,3 +1,0 @@
-## Resolved mutable: mut-installed-client-exec
-
-browser-511: apk-installed (non-bundled) xterm EXECUTED against in-page Xvfb -- XWindowCanvas lastGen=23 (fb generation advancing = X server live AND xterm connected over the AF_UNIX layer), lastErr=null. browser-516/519: xset also installed (v1.2.5-r1) + executed; a clean one-shot exit-0 was confounded only by display :99 contention (a second Xvfb collides with an already-running one: "server already running / Cannot establish any listening sockets") and by ensureXStack only running via launchXApp -- both are the known one-X-server-per-workspace limitation, NOT an apk/exec defect. Installed clients run; the per-workspace single-:99 serialization is the gate on concurrent runs.

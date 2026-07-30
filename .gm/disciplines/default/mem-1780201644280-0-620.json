@@ -1,3 +1,0 @@
-## Resolved mutable: dominant-per-frame-stage
-
-browser-41 snapshot: stageMean exec=884.62ms vs displayPixels=1.08ms, blit=2.76ms, stdout=0.33ms, parse=0.04ms. EXEC (runCommand /xappdemo) dominates the tick by ~300x over every other stage. Therefore worker-scheduling-vm-offthread (move the VM exec off-main-thread) is the single highest-yield optimization; displayPixels/blit/stdout/parse micro-opts are noise by comparison. NOTE: 884ms is the COLD first-exec; warm steady-state is currently unmeasurable because gui-pump-stops-after-first-frame wedges the pump at frame 1 (must fix that first to get warm exec numbers).

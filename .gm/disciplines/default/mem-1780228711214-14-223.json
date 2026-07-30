@@ -1,3 +1,0 @@
-## Resolved mutable: mut-xcalc-fixedfb
-
-browser-784: xcalc canvas (1 of 3) nonzero=0, shared ws counter paints0 lastGen1. Forever-client no-paint; overlay diagnostic shown. (xcalc is also a persistent window, not one-shot.)

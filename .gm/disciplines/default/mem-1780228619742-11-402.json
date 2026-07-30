@@ -1,3 +1,0 @@
-## Resolved mutable: mut-xeyes-fixedfb
-
-browser-777 ws-k6dmqlri: ticks4269 paints0 blankFrames1 lastGen1 lastErr=null; canvas 800x600 nonzero=0; overlay=correct diagnostic. hasFbSpy=true. VERDICT: window mounts, fb cross-VM read works but forever-client xeyes still paints no content (lastGen frozen at 1) -> client-window-paint blocker persists; diagnostic overlay shown correctly, never silent black.

@@ -1,3 +1,0 @@
-## Resolved mutable: mut-xclock-display
-
-browser-339 session13 ws-02abee7v: xclock window mounts, diagnostic overlay visible (No display output yet). Verdict: mounts + diagnostic-overlay (external fb).
